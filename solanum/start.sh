@@ -31,7 +31,7 @@ mkdir -p "${TAILSCALE_STATE_DIR}"
 sleep 3
 
 # Connect to Tailscale network (using same logic as atheme)
-/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${SERVER_NAME} --ssh --accept-dns=false --ephemeral
+/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${SERVER_NAME} --ssh --accept-dns=false
 
 echo "Connected to Tailscale as ${HOSTNAME}"
 
