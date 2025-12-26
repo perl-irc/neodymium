@@ -218,6 +218,12 @@ echo "Processing server-specific configuration..."
 if [ -f /opt/solanum/conf/server.conf.template ]; then
     echo "Building complete ircd.conf from server.conf + common.conf + opers.conf"
 
+    # Hash the operator password for Solanum (requires encrypted passwords)
+    if [ -n "${OPERATOR_PASSWORD}" ]; then
+        export OPERATOR_PASSWORD_HASH=$(mkpasswd "${OPERATOR_PASSWORD}")
+        echo "Operator password hashed for IRC config"
+    fi
+
     # Process all templates
     envsubst < /opt/solanum/conf/server.conf.template > /tmp/server.conf
     envsubst < /opt/solanum/conf/common.conf.template > /tmp/common.conf

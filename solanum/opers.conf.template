@@ -4,7 +4,7 @@
 /* Any Tailscale connection can oper with: /OPER admin <password> */
 operator "admin" {
     user = "*@*.${TAILSCALE_DOMAIN}", "*@100.*", "*@localhost", "*@127.0.0.1";
-    password = "${OPERATOR_PASSWORD}";
+    password = "${OPERATOR_PASSWORD_HASH}";
     privset = "admin";
     snomask = "+Zbfkrsuy";
 };
