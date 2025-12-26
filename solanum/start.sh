@@ -5,6 +5,19 @@
 
 set -e
 
+# Dynamic identity from FLY_REGION for anycast leaf servers
+# Hub servers set SERVER_NAME explicitly in fly.toml, leaf servers derive it
+if [ -z "${SERVER_NAME}" ]; then
+    # Derive from FLY_REGION for leaf servers
+    REGION="${FLY_REGION:-local}"
+    export SERVER_NAME="magnet-${REGION}"
+    # SID is first 3 characters of region, uppercase
+    export SERVER_SID=$(echo "${REGION}" | tr '[:lower:]' '[:upper:]' | head -c 3)
+    export SERVER_DESCRIPTION="MagNET IRC - ${REGION}"
+    export IS_LEAF_SERVER=1
+    echo "Dynamic identity: SERVER_NAME=${SERVER_NAME}, SERVER_SID=${SERVER_SID}"
+fi
+
 # Determine Tailscale state directory (use persistent volume if available)
 TAILSCALE_STATE_DIR="${TAILSCALE_STATE_DIR:-/var/lib/tailscale}"
 mkdir -p "${TAILSCALE_STATE_DIR}"
@@ -75,25 +88,40 @@ ls -la /opt/solanum/*
 # Use environment variables (secrets) - REQUIRED, no fallbacks
 echo "Using passwords from environment variables..."
 
-# Check required secrets are present
-if [ -z "${PASSWORD_9RL}" ]; then
-    echo "ERROR: PASSWORD_9RL secret not set!"
-    exit 1
-fi
+# Check required secrets based on server type
+if [ -n "${IS_LEAF_SERVER}" ]; then
+    # Leaf servers (magnet-irc) need hub connection passwords
+    echo "Checking leaf server secrets..."
+    if [ -z "${HUB_PASSWORD}" ]; then
+        echo "ERROR: HUB_PASSWORD secret not set!"
+        exit 1
+    fi
+    if [ -z "${LEAF_PASSWORD}" ]; then
+        echo "ERROR: LEAF_PASSWORD secret not set!"
+        exit 1
+    fi
+else
+    # Hub and legacy servers need full password set
+    echo "Checking hub/legacy server secrets..."
+    if [ -z "${PASSWORD_9RL}" ]; then
+        echo "ERROR: PASSWORD_9RL secret not set!"
+        exit 1
+    fi
 
-if [ -z "${PASSWORD_1EU}" ]; then
-    echo "ERROR: PASSWORD_1EU secret not set!"
-    exit 1
-fi
+    if [ -z "${PASSWORD_1EU}" ]; then
+        echo "ERROR: PASSWORD_1EU secret not set!"
+        exit 1
+    fi
 
-if [ -z "${OPERATOR_PASSWORD}" ]; then
-    echo "ERROR: OPERATOR_PASSWORD secret not set!"
-    exit 1
-fi
+    if [ -z "${OPERATOR_PASSWORD}" ]; then
+        echo "ERROR: OPERATOR_PASSWORD secret not set!"
+        exit 1
+    fi
 
-if [ -z "${SERVICES_PASSWORD}" ]; then
-    echo "ERROR: SERVICES_PASSWORD secret not set!"
-    exit 1
+    if [ -z "${SERVICES_PASSWORD}" ]; then
+        echo "ERROR: SERVICES_PASSWORD secret not set!"
+        exit 1
+    fi
 fi
 
 # Extract SID from server name if not explicitly set (e.g., magnet-9rl -> 9RL)
