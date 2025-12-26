@@ -106,12 +106,14 @@ Atheme connects to `magnet-9rl.internal`. With multiple hub instances:
 
 **Assumption to test**: Atheme handles connecting to a server whose name differs from the uplink hostname.
 
-## Prerequisites to Verify
+## Prerequisites Verified
 
-1. **Atheme uplink hostname mismatch test**
-   - Change hub's serverinfo.name temporarily
-   - Verify atheme still connects and syncs
-   - If fails, need explicit uplink per hub
+1. **Atheme uplink hostname mismatch test** - PASSED (2025-12-26)
+   - Changed hub's serverinfo.name from `magnet-9rl` to `magnet-test`
+   - Atheme connected to `magnet-9rl.internal`, server identified as `magnet-test.internal`
+   - Atheme logged: `handle_server(): uplink magnet-9rl.internal actually has name magnet-test.internal, continuing anyway`
+   - Synced successfully in 2ms
+   - **Conclusion:** Multi-hub failover via `.internal` DNS will work without config changes
 
 ## Migration Path
 
