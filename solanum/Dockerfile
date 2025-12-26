@@ -33,6 +33,7 @@ FROM alpine:latest
 # Install runtime dependencies - includes libraries Solanum was built against
 RUN apk update && apk add --no-cache \
     openssl \
+    sqlite \
     sqlite-libs \
     ca-certificates \
     gettext \
