@@ -54,10 +54,12 @@ listen {
     sslport = 16697;
 };
 
-/* Server-to-server port - bound to all interfaces for Tailscale linking */
+/* Server-to-server port - bound to all interfaces for internal linking
+ * Not using SSL at the IRC protocol level because Fly.io internal network (.internal)
+ * is already encrypted. If you need SSL for external S2S (public internet), add sslport.
+ */
 listen {
     port = 7000;
-    sslport = 7000;
 };
 
 
