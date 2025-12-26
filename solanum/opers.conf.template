@@ -1,33 +1,11 @@
 /* ABOUTME: Operator configuration for Solanum IRCd
-/* ABOUTME: Static operator blocks with password variables from Fly.io secrets
+/* ABOUTME: Tailscale users get admin access with shared password
 
-/* Use bin/operctl.sh add to add new operators */
-
-operator "perigrin" {
-    user = "*@damn.fool.took";
-    password = "${OPER_PERIGRIN_PASSWORD}";
+/* Any Tailscale connection can oper with: /OPER admin <password> */
+operator "admin" {
+    user = "*@*.${TAILSCALE_DOMAIN}", "*@100.64.0.0/10";
+    password = "${OPERATOR_PASSWORD}";
     privset = "admin";
     snomask = "+Zbfkrsuy";
-};
-
-operator "corwin" {
-    user = "*@*.camel-kanyu.ts.net", "*@100.64.0.0/10", "~corwin@173.255.197.255", "~corwin@ghostwheel.bru.st";
-    password = "${OPER_CORWIN_PASSWORD}";
-    snomask = "+Zbfkrsuy";
-    privset = "admin";
-};
-
-operator "ether" {
-    user = "*@*.camel-kanyu.ts.net", "*@100.64.0.0/10", "~ether@hermit1.scsys.co.uk";
-    password = "${OPER_ETHER_PASSWORD}";
-    snomask = "+Zbfkrsuy";
-    privset = "admin";
-};
-
-operator "mason" {
-    user = "*@*.camel-kanyu.ts.net", "*@100.64.0.0/10", "~mason@tigris.blisses.org";
-    password = "${OPER_MASON_PASSWORD}";
-    snomask = "+Zbfkrsuy";
-    privset = "admin";
 };
 
