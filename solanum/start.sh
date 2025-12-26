@@ -11,8 +11,10 @@ if [ -z "${SERVER_NAME}" ]; then
     # Derive from FLY_REGION for leaf servers
     REGION="${FLY_REGION:-local}"
     export SERVER_NAME="magnet-${REGION}"
-    # SID is first 3 characters of region, uppercase
-    export SERVER_SID=$(echo "${REGION}" | tr '[:lower:]' '[:upper:]' | head -c 3)
+    # SID must start with digit (0-9), then 2 alphanumeric chars
+    # Use "0" + first 2 chars of uppercase region (e.g., ord -> 0OR, ams -> 0AM)
+    REGION_UPPER=$(echo "${REGION}" | tr '[:lower:]' '[:upper:]')
+    export SERVER_SID="0$(echo "${REGION_UPPER}" | head -c 2)"
     export SERVER_DESCRIPTION="MagNET IRC - ${REGION}"
     export IS_LEAF_SERVER=1
     echo "Dynamic identity: SERVER_NAME=${SERVER_NAME}, SERVER_SID=${SERVER_SID}"
