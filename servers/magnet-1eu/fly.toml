@@ -1,5 +1,13 @@
 # ABOUTME: Fly.io configuration for magnet-1eu (EU IRC server)
 # ABOUTME: Secondary IRC server deployed in Amsterdam region with OpenSSL optimization
+#
+# IMPORTANT: This app requires a DEDICATED IPv4 address for TCP services to work.
+# Fly.io shared IPs only work for HTTP/HTTPS on ports 80/443.
+# Allocate with: flyctl ips allocate-v4 -a magnet-1eu --yes
+#
+# The proxy_proto handlers enable PROXY protocol for client IP preservation.
+# go-mmproxy running in the container unwraps these headers and spoofs the
+# original client IP when forwarding to Solanum.
 
 app = "magnet-1eu"
 primary_region = "ams"
