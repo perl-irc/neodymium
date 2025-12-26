@@ -1,5 +1,5 @@
 # ABOUTME: GitHub Actions workflow for automated Fly.io deployment
-# ABOUTME: Follows Fly.io best practices with simple flyctl deploy commands
+# ABOUTME: Deploys hub, anycast leaves, and services on push to main
 
 name: Deploy to Fly.io
 
@@ -9,66 +9,25 @@ on:
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
 
 jobs:
-  setup-infrastructure:
-    name: Setup Infrastructure
-    runs-on: ubuntu-latest
-    container: perl:stable-slim
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-          
-      - name: Create PostgreSQL Database
-        run: |
-          # Check if managed postgres cluster already exists
-          if ! flyctl mpg list --org perl-irc | grep -q "magnet-postgres"; then
-            echo "Creating Managed PostgreSQL cluster..."
-            flyctl mpg create --name magnet-postgres --region ord --org perl-irc
-          else
-            echo "Managed PostgreSQL cluster already exists"
-          fi
-          
-      - name: Create Volumes
-        run: perl scripts/create-volumes.pl --production
-        
-      - name: Setup Deploy Tokens
-        run: perl scripts/setup-deploy-tokens.pl
-
   deploy:
     name: Deploy Applications
     runs-on: ubuntu-latest
-    needs: setup-infrastructure
+    if: github.ref == 'refs/heads/main'
     strategy:
+      max-parallel: 1
       matrix:
         include:
           - app: magnet-9rl
             config: servers/magnet-9rl/fly.toml
-            region: ord
-          - app: magnet-1eu  
-            config: servers/magnet-1eu/fly.toml
-            region: ams
+          - app: magnet-irc
+            config: servers/magnet-irc/fly.toml
           - app: magnet-atheme
             config: servers/magnet-atheme/fly.toml
-            region: ord
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      
-      - name: Attach PostgreSQL to magnet-atheme
-        if: matrix.app == 'magnet-atheme'
-        run: |
-          # Attach managed postgres to atheme app
-          # This creates DATABASE_URL secret automatically
-          echo "Attaching Managed PostgreSQL to magnet-atheme..."
-          flyctl mpg attach magnet-postgres --app magnet-atheme || echo "Database may already be attached"
-        
-      - name: Set Tailscale Auth Key Secret
-        run: |
-          # Set Tailscale auth key as Fly.io secret
-          flyctl secrets set TAILSCALE_AUTHKEY="${TAILSCALE_AUTHKEY}" --app ${{ matrix.app }}
-        
+
       - name: Deploy ${{ matrix.app }}
         run: flyctl deploy --config ${{ matrix.config }} --app ${{ matrix.app }} --remote-only
