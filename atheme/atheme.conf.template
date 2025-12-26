@@ -32,18 +32,11 @@ serverinfo {
     auth = none;
 };
 
-/* Uplink configuration - primary IRC server */
+/* Uplink configuration - primary IRC server (hub) */
 /* Port 7000 is the server-to-server port without PROXY protocol */
 uplink "${ATHEME_HUB_HOSTNAME}" {
     host = "${ATHEME_HUB_HOSTNAME}";
     send_password = "${PASSWORD_9RL}";
-    receive_password = "${SERVICES_PASSWORD}";
-    port = 7000;
-};
-
-uplink "${ATHEME_FALLBACK_HOSTNAME}" {
-    host = "${ATHEME_FALLBACK_HOSTNAME}";
-    send_password = "${PASSWORD_1EU}";
     receive_password = "${SERVICES_PASSWORD}";
     port = 7000;
 };
