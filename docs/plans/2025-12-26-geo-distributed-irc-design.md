@@ -13,36 +13,26 @@ This design describes a geo-distributed IRC network on Fly.io with anycast routi
 ## Architecture
 
 ```
-                 Backbone (separate apps, private)
-        ┌────────────────────────────────────────────┐
-        │                                            │
-        │  ┌─────────────┐       ┌───────────────┐  │
-        │  │ magnet-9rl  │◄──────│ magnet-atheme │  │
-        │  │ (hub app)   │       │ (services)    │  │
-        │  │             │       │               │  │
-        │  │ Start: ord  │       │ failover via  │  │
-        │  │ Later: +ams │       │ .internal DNS │  │
-        │  └──────┬──────┘       └───────────────┘  │
-        │         │                                 │
-        └─────────┼─────────────────────────────────┘
-                  │
-          .internal links
-                  │
-         ┌────────┴────────┬─────────────────┐
-         ▼                 ▼                 ▼
-┌──────────────────────────────────────────────────────┐
-│                    magnet-irc                        │
-│            (NEW app, public, anycast)                │
-│                                                      │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐      │
-│   │ leaf-ord │    │ leaf-ams │    │ leaf-sin │ ...  │
-│   │ SID: ORD │    │ SID: AMS │    │ SID: SIN │      │
-│   └────▲─────┘    └────▲─────┘    └────▲─────┘      │
-└────────┼───────────────┼───────────────┼─────────────┘
-         │               │               │
-    ─────┴───anycast─────┴───────────────┴─────
-                         │
-                      Clients
+                         ┌─────────────────┐
+                         │      Hub        │
+                         │  (Coordinator)  │
+                         │                 │
+                         └────────┬────────┘
+                                  │
+            ┌─────────────────────┼─────────────────────┐
+            │                     │                     │
+            ▼                     ▼                     ▼
+   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+   │   Leaf (ord)    │   │   Leaf (ams)    │   │    Services     │
+   │   Chicago, US   │   │  Amsterdam, EU  │   │   (Atheme)      │
+   │                 │   │                 │   │                 │
+   └─────────────────┘   └─────────────────┘   └─────────────────┘
+            ▲                     ▲
+            │                     │
+      ┌─────┴─────┐         ┌─────┴─────┐
+      │  Clients  │         │  Clients  │
+      │ (Anycast) │         │ (Anycast) │
+      └───────────┘         └───────────┘
 ```
 
 ## App Responsibilities
@@ -76,21 +66,17 @@ export IRC_DOMAIN="internal"
 
 ## Hub Connect Blocks
 
-Hub pre-configures connect blocks for all supported regions:
+Hub pre-configures connect blocks for all supported regions. The `host` field uses a wildcard
+to match Fly.io's machine-ID-based reverse DNS (e.g., `48e3102b7e0118.vm.magnet-irc.internal`):
 
 ```
 connect "magnet-ord.${IRC_DOMAIN}" {
-    host = "magnet-ord.${IRC_DOMAIN}";
-    send_password = "${HUB_PASSWORD}";
-    accept_password = "${LEAF_PASSWORD}";
+    host = "*.vm.magnet-irc.internal";
+    send_password = "${LEAF_PASSWORD}";
+    accept_password = "${HUB_PASSWORD}";
     port = 7000;
     class = "server";
     flags = topicburst;
-};
-
-connect "magnet-ams.${IRC_DOMAIN}" {
-    host = "magnet-ams.${IRC_DOMAIN}";
-    ...
 };
 ```
 
@@ -115,30 +101,30 @@ Atheme connects to `magnet-9rl.internal`. With multiple hub instances:
    - Synced successfully in 2ms
    - **Conclusion:** Multi-hub failover via `.internal` DNS will work without config changes
 
-## Migration Path
+## Migration Status (Completed)
 
-### Current State
-- magnet-9rl (hub, ord)
-- magnet-1eu (leaf, ams)
-- magnet-atheme (services, ord)
+### Final State
+- magnet-9rl (hub, ord) - no public IP needed, internal only
+- magnet-irc (leaves, ord + ams) - anycast with dedicated IPv4
+- magnet-atheme (services, ord) - connects directly to hub
 
-### Target State
-- magnet-9rl (hub, ord) - add leaf connect blocks
-- magnet-irc (leaves, multi-region) - NEW, absorbs magnet-1eu
-- magnet-atheme (services, ord) - unchanged
+### Completed Steps
 
-### Steps
+1. ✅ Tested atheme uplink hostname mismatch behavior
+2. ✅ Updated magnet-9rl: added connect blocks with wildcard host matching
+3. ✅ Created magnet-irc app with dynamic identity from FLY_REGION
+4. ✅ Deployed to ord + ams
+5. ✅ Allocated dedicated IPv4 for anycast
+6. ✅ Verified leaves link to hub via autoconn
+7. ✅ Retired magnet-1eu
+8. ✅ Released hub's public IP (internal-only traffic)
 
-1. Test atheme uplink mismatch behavior
-2. Update magnet-9rl: add connect blocks for `magnet-ord`, `magnet-ams`, etc.
-3. Create magnet-irc app with dynamic identity startup
-4. Deploy to ord + ams with min 1 each
-5. Allocate dedicated IPv4 for anycast
-6. Verify leaves link to hub, clients connect via anycast
-7. Retire magnet-1eu once magnet-irc (ams) is stable
+### Pre-configured Regions
 
-## Open Questions
-
-- Which additional regions to pre-configure? (sin, syd, gru, etc.)
-- Cold start latency acceptable for scale-to-zero regions?
-- Need health check endpoint on leaves for Fly.io?
+Ready to activate with `flyctl scale count`:
+- sin (Singapore)
+- syd (Sydney)
+- gru (São Paulo)
+- sea (Seattle)
+- lhr (London)
+- iad (Virginia)
