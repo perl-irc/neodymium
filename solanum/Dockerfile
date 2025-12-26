@@ -42,7 +42,18 @@ RUN apk update && apk add --no-cache \
     libtool \
     libltdl \
     mkpasswd \
-    certbot
+    certbot \
+    iproute2
+
+# Build go-mmproxy from source for PROXY protocol support
+# This allows preserving client IP addresses when behind Fly.io's proxy
+RUN apk add --no-cache go git && \
+    git clone --depth 1 --branch 2.1 https://github.com/path-network/go-mmproxy.git /tmp/go-mmproxy && \
+    cd /tmp/go-mmproxy && \
+    go build -o /usr/local/bin/go-mmproxy . && \
+    chmod +x /usr/local/bin/go-mmproxy && \
+    rm -rf /tmp/go-mmproxy /root/go && \
+    apk del go git
 
 # Copy Tailscale binaries from official image
 COPY --from=tailscale/tailscale:latest /usr/local/bin/tailscaled /usr/local/bin/tailscaled
@@ -68,8 +79,9 @@ COPY solanum/renew-cert.sh /opt/solanum/bin/renew-cert.sh
 COPY solanum/renew-hook.sh /opt/solanum/bin/renew-hook.sh
 RUN chmod +x /app/start.sh /app/start-dynamic.sh /opt/solanum/bin/renew-cert.sh /opt/solanum/bin/renew-hook.sh
 
-# Copy server-specific config
-COPY server.conf /opt/solanum/conf/server.conf.template
+# Copy server-specific config (path set via build arg)
+ARG SERVER_DIR=.
+COPY ${SERVER_DIR}/server.conf /opt/solanum/conf/server.conf.template
 
 # Container starts as root for Tailscale, drops to ircd user for Solanum
 WORKDIR /opt/solanum

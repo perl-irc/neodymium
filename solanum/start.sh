@@ -1,7 +1,7 @@
 #!/bin/sh
-# ABOUTME: Solanum IRCd startup script with Fly.io .internal networking and password generation
-# ABOUTME: Handles secure password generation, template processing, and IRC server startup
-# Cache buster: v2024-08-28-1
+# ABOUTME: Solanum IRCd startup script with Fly.io networking and go-mmproxy integration
+# ABOUTME: Handles PROXY protocol translation, password generation, and IRC server startup
+# Cache buster: v2024-12-26-1
 
 set -e
 
@@ -15,6 +15,47 @@ sleep 3
 /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${SERVER_NAME} --ssh --accept-dns=false
 
 echo "Connected to Tailscale as ${HOSTNAME}"
+
+# Set up routing rules for go-mmproxy
+# These rules ensure that responses from Solanum (with spoofed source IPs) get routed
+# back through go-mmproxy on the loopback interface
+echo "Setting up go-mmproxy routing rules..."
+
+# IPv4 routing: route loopback-originated traffic to special table
+ip rule add from 127.0.0.1/8 iif lo table 123 2>/dev/null || true
+ip route add local 0.0.0.0/0 dev lo table 123 2>/dev/null || true
+
+# IPv6 routing: same for IPv6
+ip -6 rule add from ::1/128 iif lo table 123 2>/dev/null || true
+ip -6 route add local ::/0 dev lo table 123 2>/dev/null || true
+
+echo "Routing rules configured"
+
+# Start go-mmproxy instances for client ports
+# go-mmproxy unwraps PROXY protocol from Fly.io edge and spoofs client IP
+echo "Starting go-mmproxy for PROXY protocol handling..."
+
+# Plain IRC (6667 -> 16667)
+/usr/local/bin/go-mmproxy -l 0.0.0.0:6667 -4 127.0.0.1:16667 -6 [::1]:16667 -v 1 &
+MMPROXY_6667_PID=$!
+
+# SSL IRC (6697 -> 16697)
+/usr/local/bin/go-mmproxy -l 0.0.0.0:6697 -4 127.0.0.1:16697 -6 [::1]:16697 -v 1 &
+MMPROXY_6697_PID=$!
+
+sleep 1
+
+# Verify go-mmproxy is running
+if ! kill -0 $MMPROXY_6667_PID 2>/dev/null; then
+    echo "ERROR: go-mmproxy for port 6667 failed to start"
+    exit 1
+fi
+if ! kill -0 $MMPROXY_6697_PID 2>/dev/null; then
+    echo "ERROR: go-mmproxy for port 6697 failed to start"
+    exit 1
+fi
+
+echo "go-mmproxy started (PIDs: $MMPROXY_6667_PID, $MMPROXY_6697_PID)"
 
 chown ircd:ircd -R /opt/solanum
 find /opt/solanum -type d -exec chmod 755 {} \;
@@ -189,10 +230,27 @@ check_solanum() {
     fi
 }
 
-# Keep container running and monitor Solanum process
+# Function to check if go-mmproxy instances are still running
+check_mmproxy() {
+    if ! pgrep -f "go-mmproxy.*:6667" > /dev/null; then
+        echo "go-mmproxy (6667) process died"
+        return 1
+    fi
+    if ! pgrep -f "go-mmproxy.*:6697" > /dev/null; then
+        echo "go-mmproxy (6697) process died"
+        return 1
+    fi
+}
+
+# Keep container running and monitor processes
 while true; do
     if ! check_solanum; then
         echo "Solanum process died, initiating cleanup and exit"
+        cleanup
+        exit 1
+    fi
+    if ! check_mmproxy; then
+        echo "go-mmproxy process died, initiating cleanup and exit"
         cleanup
         exit 1
     fi

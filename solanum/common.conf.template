@@ -37,16 +37,24 @@ class "opers" {
     sendq = 100 kbytes;
 };
 
-/* Listeners - bind to all interfaces */
+/* Listeners - client ports bound to loopback for go-mmproxy integration
+ * go-mmproxy handles PROXY protocol from Fly.io edge and forwards here,
+ * spoofing the original client IP address.
+ * External 6667 → go-mmproxy → 127.0.0.1:16667
+ * External 6697 → go-mmproxy → 127.0.0.1:16697
+ */
 listen {
-    port = 6667;
+    host = "127.0.0.1";
+    port = 16667;
 };
 
 listen {
-    port = 6697;
-    sslport = 6697;
+    host = "127.0.0.1";
+    port = 16697;
+    sslport = 16697;
 };
 
+/* Server-to-server port - bound to all interfaces for Tailscale linking */
 listen {
     port = 7000;
     sslport = 7000;

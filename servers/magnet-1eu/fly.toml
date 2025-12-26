@@ -12,10 +12,10 @@ primary_region = "ams"
   policy = "on-failure"
 
 [build]
-  dockerfile = "solanum/Dockerfile"
+  dockerfile = "../../solanum/Dockerfile"
   context = "../.."
   [build.args]
-    SERVER_NAME = "magnet-1eu"
+    SERVER_DIR = "servers/magnet-1eu"
 
 [mounts]
   source = "magnet_1eu_data_1gb"
@@ -38,6 +38,7 @@ primary_region = "ams"
 
   [[services.ports]]
     port = 6667
+    handlers = ["proxy_proto"]
 
   [[services.tcp_checks]]
     grace_period = "30s"
@@ -50,6 +51,7 @@ primary_region = "ams"
 
   [[services.ports]]
     port = 6697
+    handlers = ["proxy_proto"]
 
   [[services.tcp_checks]]
     grace_period = "30s"
