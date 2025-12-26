@@ -1,19 +1,19 @@
-# ABOUTME: Fly.io configuration for magnet-9rl (US Hub IRC server)
-# ABOUTME: Primary IRC server deployed in Chicago region with OpenSSL optimization
+# ABOUTME: Fly.io configuration for magnet-irc (anycast leaf IRC servers)
+# ABOUTME: Client-facing servers with dynamic identity from FLY_REGION
 #
 # IMPORTANT: This app requires a DEDICATED IPv4 address for TCP services to work.
 # Fly.io shared IPs only work for HTTP/HTTPS on ports 80/443.
-# Allocate with: flyctl ips allocate-v4 -a magnet-9rl --yes
+# Allocate with: flyctl ips allocate-v4 -a magnet-irc --yes
 #
 # The proxy_proto handlers enable PROXY protocol for client IP preservation.
 # go-mmproxy running in the container unwraps these headers and spoofs the
 # original client IP when forwarding to Solanum.
 
-app = "magnet-9rl"
+app = "magnet-irc"
 primary_region = "ord"
 
 [vm]
-  memory = "1gb"
+  memory = "512mb"
   cpus = 1
 
 [[restart]]
@@ -23,24 +23,15 @@ primary_region = "ord"
   dockerfile = "../../solanum/Dockerfile"
   context = "../.."
   [build.args]
-    SERVER_DIR = "servers/magnet-9rl"
-
-[mounts]
-  source = "magnet_9rl_data"
-  destination = "/opt/solanum/etc/"
+    SERVER_DIR = "servers/magnet-irc"
 
 [env]
-  SERVER_NAME = "magnet-9rl"
-  SERVER_SID = "9RL"
-  SERVER_DESCRIPTION = "Magnet IRC Network - US Hub"
+  # SERVER_NAME and SERVER_SID are set dynamically in start.sh from FLY_REGION
   IRC_DOMAIN = "internal"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
-  TAILSCALE_STATE_DIR = "/opt/solanum/etc/tailscale"
   ADMIN_NAME = "Chris Prather"
   ADMIN_DESCRIPTION = "Current MagNET Wrangler"
   ADMIN_EMAIL = "chris@prather.org"
-  SSL_DOMAINS = "magnet-9rl.fly.dev,magnet-9rl.kowloon.social,magnet-9rl.irc.perl.org"
-
 
 [[services]]
   internal_port = 6667

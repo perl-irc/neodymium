@@ -12,7 +12,8 @@ primary_region = "ord"
   policy = "on-failure"
 
 [build]
-  dockerfile = "atheme/Dockerfile"
+  dockerfile = "../../atheme/Dockerfile"
+  context = "../.."
 
 [mounts]
   source = "magnet_atheme_data"
@@ -22,8 +23,9 @@ primary_region = "ord"
   SERVER_NAME = "magnet-atheme"
   ATHEME_NETWORK = "Magnet"
   ATHEME_HUB_SERVER = "magnet-9RL"
-  ATHEME_HUB_HOSTNAME = "magnet-9rl-1.camel-kanyu.ts.net"
-  ATHEME_FALLBACK_HOSTNAME = "magnet-1eu.camel-kanyu.ts.net"
+  ATHEME_HUB_HOSTNAME = "magnet-9rl.internal"
+  IRC_DOMAIN = "internal"
+  TAILSCALE_STATE_DIR = "/opt/atheme/etc/tailscale"
   ATHEME_TAILSCALE_IP = "100.123.207.46"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
   ADMIN_NAME = "Chris Prather"

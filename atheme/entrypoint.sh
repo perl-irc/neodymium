@@ -4,15 +4,19 @@
 
 set -e
 
-# Start Tailscale daemon in background
-/usr/local/bin/tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock &
+# Determine Tailscale state directory (use persistent volume if available)
+TAILSCALE_STATE_DIR="${TAILSCALE_STATE_DIR:-/var/lib/tailscale}"
+mkdir -p "${TAILSCALE_STATE_DIR}"
+
+# Start Tailscale daemon in background with persistent state
+/usr/local/bin/tailscaled --state="${TAILSCALE_STATE_DIR}/tailscaled.state" --socket=/var/run/tailscale/tailscaled.sock &
 
 # Wait for daemon to start
 sleep 5
 
 # Connect to Tailscale network
 HOSTNAME=${SERVER_NAME:-atheme-${FLY_REGION:-unknown}}
-/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${HOSTNAME} --ssh --accept-routes=false --accept-dns=true --state=mem:
+/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${HOSTNAME} --ssh --accept-dns=true
 
 echo "Connected to Tailscale as ${HOSTNAME}"
 
