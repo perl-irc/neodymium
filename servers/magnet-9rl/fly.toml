@@ -29,15 +29,13 @@ primary_region = "ord"
   source = "magnet_9rl_data"
   destination = "/opt/solanum/etc/"
 
-# [mounts]
-#   source = "magnet_9rl_data"
-#   destination = "/opt/solanum/var"
-
 [env]
   SERVER_NAME = "magnet-9rl"
   SERVER_SID = "9RL"
   SERVER_DESCRIPTION = "Magnet IRC Network - US Hub"
+  IRC_DOMAIN = "internal"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
+  TAILSCALE_STATE_DIR = "/opt/solanum/etc/tailscale"
   ADMIN_NAME = "Chris Prather"
   ADMIN_DESCRIPTION = "Current MagNET Wrangler"
   ADMIN_EMAIL = "chris@prather.org"

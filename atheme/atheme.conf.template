@@ -13,7 +13,7 @@ database {
 loadmodule "backend/opensex";
 
 serverinfo {
-    name = "magnet-atheme.internal";
+    name = "magnet-atheme.${IRC_DOMAIN}";
     desc = "${ATHEME_NETWORK} IRC Services";
     numeric = "00A";
     recontime = 10;
@@ -33,20 +33,19 @@ serverinfo {
 };
 
 /* Uplink configuration - primary IRC server */
+/* Port 7000 is the server-to-server port without PROXY protocol */
 uplink "${ATHEME_HUB_HOSTNAME}" {
     host = "${ATHEME_HUB_HOSTNAME}";
-    vhost = "${ATHEME_TAILSCALE_IP}";
     send_password = "${PASSWORD_9RL}";
     receive_password = "${SERVICES_PASSWORD}";
-    port = 6667;
+    port = 7000;
 };
 
 uplink "${ATHEME_FALLBACK_HOSTNAME}" {
     host = "${ATHEME_FALLBACK_HOSTNAME}";
-    vhost = "${ATHEME_TAILSCALE_IP}";
     send_password = "${PASSWORD_1EU}";
     receive_password = "${SERVICES_PASSWORD}";
-    port = 6667;
+    port = 7000;
 };
 
 
