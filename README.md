@@ -1,264 +1,248 @@
 # Magnet IRC Network
 
-A modern, distributed IRC network infrastructure built for irc.perl.org with
-multi-region deployment.
+A modern, geo-distributed IRC network infrastructure built for irc.perl.org with
+anycast routing and automatic regional scaling.
 
 ## Overview
 
-The Magnet IRC Network is IRC infrastructure that provides reliable, secure,
-and performant IRC services across multiple geographic regions. Built using
-Solanum IRCd and Atheme services, it leverages Fly.io's global infrastructure
-and Tailscale's mesh networking for secure inter-server communication.
+The Magnet IRC Network provides reliable, secure, and performant IRC services
+across multiple geographic regions. Built using Solanum IRCd and Atheme services,
+it leverages Fly.io's global anycast infrastructure for optimal client routing
+and go-mmproxy for client IP preservation.
 
 ### Key Features
 
-- **Multi-Region Deployment**: US (Chicago) and EU (Amsterdam) regions for
-  optimal global performance
-- **Security-First Design**: Tailscale mesh networking, ephemeral
-  authentication keys, auto-generated passwords
-- **High Availability**: Geographic redundancy with automatic failover
-  capabilities
-- **Modern Infrastructure**: Container-based deployment with proper health
-  checks and monitoring
+- **Anycast Routing**: Clients automatically connect to the nearest regional server
+- **Client IP Preservation**: go-mmproxy unwraps PROXY protocol headers to maintain
+  real client IPs for bans, geolocation, and logging
+- **Dynamic Scaling**: Add new regions with a single command - no code changes needed
+- **Hub-and-Spoke Topology**: Central hub with auto-connecting leaf servers
+- **Modern Infrastructure**: Container-based deployment with health checks and monitoring
 
 ## Architecture
 
 ```
-┌─────────────────┐    Tailscale     ┌─────────────────┐
-│   magnet-9RL    │◄─────────────────►│   magnet-1EU    │
-│  (US Hub/IRC)   │   Private Mesh   │   (EU IRC)      │
-│  SID: 9RL       │                  │   SID: 1EU      │
-│  OpenSSL+EPYC   │                  │  OpenSSL+EPYC   │
-└─────────────────┘                  └─────────────────┘
-         │                                    │
-         ▼                                    ▼
-┌─────────────────┐
-│  magnet-atheme  │
-│  (US Services)  │
-│ opensex backend │
-│  OpenSSL+EPYC   │
-└─────────────────┘
+                         ┌─────────────────┐
+                         │      Hub        │
+                         │  (Coordinator)  │
+                         │                 │
+                         └────────┬────────┘
+                                  │
+            ┌─────────────────────┼─────────────────────┐
+            │                     │                     │
+            ▼                     ▼                     ▼
+   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+   │   Leaf (ord)    │   │   Leaf (ams)    │   │    Services     │
+   │   Chicago, US   │   │  Amsterdam, EU  │   │   (Atheme)      │
+   │                 │   │                 │   │                 │
+   └─────────────────┘   └─────────────────┘   └─────────────────┘
+            ▲                     ▲
+            │                     │
+      ┌─────┴─────┐         ┌─────┴─────┐
+      │  Clients  │         │  Clients  │
+      │ (Anycast) │         │ (Anycast) │
+      └───────────┘         └───────────┘
 ```
 
 ### Components
 
-1. **magnet-9RL** - Primary IRC server (US/Chicago)
-   - Solanum IRCd with OpenSSL optimizations
-   - Hub server for network coordination
-   - SSL/TLS client connections on port 6697
+1. **Hub Server** - Central coordinator
+   - Routes messages between all connected servers
+   - Accepts connections from leaf servers and services
+   - Single point of network coordination
 
-2. **magnet-1EU** - Secondary IRC server (EU/Amsterdam)
-   - Solanum IRCd with OpenSSL optimizations
-   - Linked to US hub for global federation
-   - Regional optimization for European users
+2. **Leaf Servers (magnet-irc)** - Regional client-facing servers
+   - Deployed via Fly.io anycast to multiple regions
+   - Dynamic identity derived from `FLY_REGION` (e.g., ord → magnet-ord)
+   - Auto-connect to hub via `autoconn` flag
+   - go-mmproxy preserves real client IPs through PROXY protocol
 
-3. **magnet-atheme** - IRC Services (US/Chicago)
-   - User registration and authentication (NickServ)
-   - Channel management services (ChanServ)
-   - Persistent data storage via opensex flat file backend
+3. **Services (magnet-atheme)** - IRC Services
+   - NickServ, ChanServ, OperServ, MemoServ
+   - Persistent data via opensex flat file backend
+   - Connects directly to hub
 
-## Getting Started
+### Client Connection Flow
 
-### Prerequisites
+```
+Client → Fly.io Anycast → Nearest Leaf → go-mmproxy → Solanum
+                                              │
+                                    (preserves real IP)
+```
 
-- Access to the perl-irc Github organization
-- [Fly.io CLI](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated
-- Access to the `magnet-irc` Fly.io organization
-- Tailscale account with access to the `perl-irc` organization
-- Basic familiarity with IRC network administration
+1. Client connects to `irc.perl.org:6667` or `:6697` (SSL)
+2. Fly.io routes to nearest regional leaf server
+3. Fly.io edge adds PROXY protocol headers with real client IP
+4. go-mmproxy unwraps headers and spoofs the client IP
+5. Solanum receives connection with original client IP intact
 
 ## Deployment
 
-**IMPORTANT**: All deployments must be run from the project root directory due to Docker build context requirements.
+**IMPORTANT**: All deployments must be run from the project root directory.
 
-### Development Deployment
+### Adding a New Region
 
-For testing and development purposes, use development-specific app names to avoid
-conflicts with production:
+To add a new region (e.g., Frankfurt):
 
 ```bash
-# Deploy from project root directory (REQUIRED)
-cd /path/to/magnet
+# Scale to include the new region
+flyctl scale count 3 --region ord,ams,fra -a magnet-irc
 
-# Create development apps with -dev suffix
-fly apps create magnet-hub-dev --org magnet-irc
-fly apps create magnet-atheme-dev --org magnet-irc
-
-# Set up Tailscale authentication for dev
-fly secrets set TAILSCALE_AUTHKEY=tskey-auth-xxxxx --app magnet-9rl-dev
-
-# Deploy base infrastructure (from root directory)
-fly deploy --app magnet-hub-dev --dockerfile solanum/Dockerfile --config servers/magnet-9rl/fly.toml
-fly deploy --app magnet-atheme-dev --dockerfile atheme/Dockerfile --config servers/magnet-atheme/fly.toml
-
-# Validate mesh connectivity
-fly ssh console --app magnet-hub-dev
-tailscale status
+# Add connect block to hub config (servers/magnet-hub/server.conf)
+# Then redeploy hub
+flyctl deploy -a magnet-hub --config servers/magnet-hub/fly.toml
 ```
 
-**Important**: Always use the `-dev` suffix for development deployments to prevent
-conflicts with production infrastructure.
+The leaf server will automatically:
+- Derive its name from the region (fra → magnet-fra)
+- Generate a valid SID (0FR)
+- Connect to the hub via autoconn
 
-### Production Deployment
+### Current Regions
 
-Follow the systematic approach outlined in `github-issues.md`:
+| Region | Location | Code |
+|--------|----------|------|
+| ord | Chicago, US | 0OR |
+| ams | Amsterdam, EU | 0AM |
 
-1. **Start with Issue #1** - Implement base infrastructure with proper testing
-2. **Follow TDD methodology** - Write failing tests, implement minimal code to pass
-3. **Validate each step** - Ensure all tests pass before proceeding
-4. **Build incrementally** - Each issue adds functionality while maintaining stability
+### Pre-configured Regions
+
+These connect blocks exist on the hub - just scale to activate:
+
+- sin (Singapore)
+- syd (Sydney)
+- gru (São Paulo)
+- dfw (Dallas)
+- iad (Virginia)
+- lhr (London)
+- fra (Frankfurt)
 
 ## Configuration
 
-### Key Environment Variables
+### Environment Variables
 
-- `SERVER_NAME` - Unique server identifier (magnet-9RL, magnet-1EU)
-- `SERVER_SID` - Three-character server ID for IRC protocol
-- `SERVER_DESCRIPTION` - Human-readable server description
-- `TAILSCALE_AUTHKEY` - Ephemeral auth key for mesh networking
-- `SERVICES_PASSWORD` - Authentication between IRC server and services
-- `LINK_PASSWORD_9RL_1EU` - Authentication between linked IRC servers
+**Leaf Servers (magnet-irc):**
+- `FLY_REGION` - Automatically set by Fly.io, used to derive identity
+- `HUB_PASSWORD` - Password sent to hub
+- `LEAF_PASSWORD` - Password accepted from hub
+- `IRC_DOMAIN` - Domain suffix (default: `internal`)
 
-### Configuration Templates
+**Hub Server:**
+- `SERVER_NAME` - Explicit server name
+- `SERVER_SID` - Three-character server ID
+- `LEAF_PASSWORD` / `HUB_PASSWORD` - Shared secrets for leaf auth
+- `SERVICES_PASSWORD` - Authentication for Atheme
 
-The project uses environment variable substitution in configuration templates:
+### Configuration Files
 
-- `ircd.conf.template` - Solanum server configuration
-- `atheme.conf.template` - Atheme services configuration
-- Startup scripts handle dynamic password generation and Tailscale initialization
+```
+servers/
+├── magnet-hub/
+│   ├── fly.toml          # Hub Fly.io config
+│   └── server.conf       # Hub-specific IRC config
+├── magnet-irc/
+│   ├── fly.toml          # Leaf Fly.io config
+│   └── server.conf       # Leaf template (uses env vars)
+└── magnet-atheme/
+    └── fly.toml          # Services Fly.io config
+
+solanum/
+├── common.conf.template  # Shared IRC settings
+├── opers.conf.template   # Operator definitions
+├── start.sh              # Startup script with env substitution
+└── Dockerfile            # Solanum + go-mmproxy build
+
+atheme/
+├── atheme.conf.template  # Services configuration
+├── entrypoint.sh         # Startup script
+└── Dockerfile            # Atheme build
+```
 
 ## Security
 
-### Security Features
+### Network Security
 
-- **Ephemeral Tailscale Keys** - Devices automatically cleaned up on container termination
-- **Auto-Generated Passwords** - 24-32 character secure passwords for all inter-service communication
-- **SSL/TLS Everywhere** - All client and server-to-server communications encrypted
-- **Private Mesh Networking** - Inter-server communication isolated via Tailscale
-- **AMD EPYC Optimizations** - Hardware-accelerated cryptography with OpenSSL
+- **Fly.io Internal Network**: Server-to-server communication uses `.internal` DNS
+  over Fly.io's encrypted private network
+- **No Public S2S Ports**: Port 7000 (S2S) only accessible within Fly.io network
+- **Client SSL/TLS**: Port 6697 for encrypted client connections
 
-### Security Best Practices
+### Secrets Management
 
-- No passwords stored in plain text or logs
-- Secure credential distribution via Fly.io secrets
-- Network isolation from public internet for internal communication
-- Regular password rotation capabilities
-- Comprehensive security audit coverage in test suite
+All sensitive values stored as Fly.io secrets:
+```bash
+flyctl secrets set HUB_PASSWORD=xxx LEAF_PASSWORD=xxx -a magnet-irc
+flyctl secrets set SERVICES_PASSWORD=xxx -a magnet-atheme
+```
 
-## Performance
+### Client IP Preservation
 
-### Optimization Features
+go-mmproxy ensures real client IPs are visible to Solanum for:
+- K-lines and bans
+- Connection logging
+- Geolocation
+- Abuse prevention
 
-- **OpenSSL with AES-NI** acceleration on AMD EPYC processors
-- **Multi-core compilation** during Docker builds
-- **Optimized connection classes** for different user types and regions
-- **Efficient resource allocation** (1-2GB RAM, 1-2 vCPUs per service)
-- **Geographic distribution** for optimal user experience
+## Operations
 
-### Performance Monitoring
-
-The project includes comprehensive performance testing:
-- Response time measurement and SLA establishment
-- Throughput testing under load
-- Resource utilization monitoring
-- Capacity planning metrics
-- Performance regression detection
-
-## Troubleshooting
-
-### Common Operations
+### Common Commands
 
 ```bash
-# Check application status
-fly status --app magnet-9rl
+# Check leaf server status
+flyctl status -a magnet-irc
 
 # View logs
-fly logs --app magnet-9rl
+flyctl logs -a magnet-irc
 
-# SSH into container
-fly ssh console --app magnet-9rl
+# SSH into a specific region
+flyctl ssh console -a magnet-irc -r ord
 
-# Check Tailscale mesh status
-tailscale status
+# Check network links (from any server)
+flyctl ssh console -a magnet-irc -C "sh -c 'printf \"LINKS\r\n\" | nc -w 2 127.0.0.1 16667'"
 
-# Monitor SSL connections
-netstat -an | grep :6697
-
-# Test OpenSSL performance
-openssl speed aes-256-cbc
-
-# Verify AMD EPYC features
-cat /proc/cpuinfo | grep flags
+# Scale regions
+flyctl scale count 4 --region ord,ams,fra,sin -a magnet-irc
 ```
 
 ### Health Checks
 
-All components include comprehensive health checks:
-- Tailscale mesh connectivity
-- IRC server responsiveness
-- Services authentication status
-- Flat file backend accessibility
-- SSL certificate validity
+All components include health checks:
+- TCP checks on IRC ports (6667, 6697)
+- S2S port availability (7000)
+- Process monitoring in start.sh
 
-## Development
+## Troubleshooting
 
-### Contributing
+### Leaf Not Linking to Hub
 
-1. **Use GitHub Issues** - Follow the systematic 15-issue implementation plan
-2. **Maintain Documentation** - Update relevant documentation with changes
-3. **Test Thoroughly** - Ensure all tests pass before submitting changes
-4. **Security Review** - Consider security implications of all changes
+1. Check host matching - hub connect blocks must use wildcard:
+   ```
+   host = "*.vm.magnet-irc.internal";
+   ```
+   (Fly.io VMs have machine-ID-based reverse DNS, not region names)
 
-### Testing
+2. Verify secrets match between hub and leaf
 
-The project emphasizes comprehensive testing:
-- **Unit Tests** - Component-level functionality validation
-- **Integration Tests** - Inter-component communication testing
-- **End-to-End Tests** - Complete IRC network functionality
-- **Load Tests** - Performance and stability under realistic usage
-- **Security Tests** - Vulnerability and penetration testing
+3. Check DNS resolution:
+   ```bash
+   flyctl ssh console -a magnet-irc -C "nslookup magnet-hub.internal"
+   ```
 
-### Code Style
+### Client IP Shows as 127.0.0.1
 
-- Simple, clean, maintainable solutions preferred
-- Match existing code style and formatting
-- Preserve comments and documentation
-- Use descriptive, evergreen naming conventions
-- No mock implementations - always use real data and APIs
-
-## Documentation
-
-### Key Files
-
-- **`README.md`** - This comprehensive project overview
-- **`LICENSE`** - MIT License for the project
-
-### Additional Resources
-
-- [Fly.io Documentation](https://fly.io/docs/)
-- [Tailscale Documentation](https://tailscale.com/kb/)
-- [Solanum IRCd Documentation](https://github.com/solanum-ircd/solanum)
-- [Atheme Services Documentation](https://github.com/atheme/atheme)
+go-mmproxy isn't running or routing rules aren't set. Check:
+```bash
+flyctl ssh console -a magnet-irc -C "ps -ef | grep mmproxy"
+flyctl ssh console -a magnet-irc -C "ip rule list"
+```
 
 ## License
 
-This project is licensed under the MIT License - see the
-[LICENSE](/Users/perigrin/dev/magnet/LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
-## Organizations
+## Resources
 
-- **Fly.io Organization**: `magnet-irc`
-- **Tailscale Organization**: `perl-irc`
-- **Github Organization**: `perl-irc`
-
-## Support
-
-For issues, questions, or contributions:
-1. Submit issues following the established format
-2. Ensure all tests pass before requesting reviews
-
----
-
-**Note**: This infrastructure is designed for production IRC network operation.
-Follow all security best practices and test thoroughly in development
-environments before production deployment.
+- [Fly.io Documentation](https://fly.io/docs/)
+- [Solanum IRCd](https://github.com/solanum-ircd/solanum)
+- [Atheme Services](https://github.com/atheme/atheme)
+- [go-mmproxy](https://github.com/path-network/go-mmproxy)
