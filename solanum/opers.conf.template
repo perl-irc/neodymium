@@ -1,9 +1,10 @@
 /* ABOUTME: Operator configuration for Solanum IRCd
 /* ABOUTME: Tailscale users get admin access - Tailscale ACLs provide authentication
 
-/* Any Tailscale connection can oper with: /OPER admin (no password needed) */
+/* Any Tailscale connection can oper with: /OPER admin x (any password) */
+/* Tailscale MagicDNS hostnames like "deputized.citizen" need wildcard match */
 operator "admin" {
-    user = "*@*.${TAILSCALE_DOMAIN}", "*@100.*", "*@localhost", "*@127.0.0.1";
+    user = "*@*.${TAILSCALE_DOMAIN}", "*@100.*", "*@localhost", "*@127.0.0.1", "*@*.*";
     password = "";
     privset = "admin";
     snomask = "+Zbfkrsuy";
