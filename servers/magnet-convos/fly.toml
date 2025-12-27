@@ -14,7 +14,7 @@ primary_region = 'ord'
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
   # Default connection via Flycast to leaf servers (load balanced)
   # Users can add their own connections too
-  CONVOS_DEFAULT_CONNECTION = "irc://magnet-irc.flycast:6667/%23lobby"
+  CONVOS_DEFAULT_CONNECTION = "irc://magnet-irc.flycast:6667/%23perl-help"
 
 [mounts]
   source = "convos_data"
