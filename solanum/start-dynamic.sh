@@ -13,20 +13,18 @@ cleanup() {
 }
 trap cleanup TERM INT
 
-# Start Tailscale daemon with in-memory state (ephemeral)
-# Node is auto-removed from tailnet when container stops
-/usr/local/bin/tailscaled --state=mem: &
+# Start Tailscale daemon with persistent state
+# Cleanup is handled by explicit logout on shutdown signal
+mkdir -p /var/lib/tailscale
+/usr/local/bin/tailscaled --state=/var/lib/tailscale/tailscaled.state &
 
 # Wait for daemon to start
 sleep 3
 
 # Connect to Tailscale network
-# Use machine ID suffix to avoid hostname clashes on restart/multi-instance
-MACHINE_SUFFIX=$(echo "${FLY_MACHINE_ID:-local}" | cut -c1-6)
-TS_HOSTNAME="${SERVER_NAME:-magnet}-${MACHINE_SUFFIX}"
-/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${TS_HOSTNAME} --ssh --accept-dns=false
+/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${SERVER_NAME:-magnet} --ssh --accept-dns=false
 
-echo "Connected to Tailscale as ${TS_HOSTNAME}"
+echo "Connected to Tailscale as ${SERVER_NAME:-magnet}"
 
 chown ircd:ircd -R /opt/solanum
 find /opt/solanum -type d -exec chmod 755 {} \;

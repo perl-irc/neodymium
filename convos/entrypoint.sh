@@ -11,17 +11,16 @@ cleanup() {
 }
 trap cleanup TERM INT
 
-# Start Tailscale daemon with in-memory state (ephemeral)
-/usr/local/bin/tailscaled --state=mem: &
+# Start Tailscale daemon with persistent state
+# Cleanup is handled by explicit logout on shutdown signal
+mkdir -p /var/lib/tailscale
+/usr/local/bin/tailscaled --state=/var/lib/tailscale/tailscaled.state &
 sleep 2
 
 # Connect to Tailscale if auth key is provided
 if [ -n "${TAILSCALE_AUTHKEY}" ]; then
-    # Use machine ID suffix to avoid hostname clashes on restart
-    MACHINE_SUFFIX=$(echo "${FLY_MACHINE_ID:-local}" | cut -c1-6)
-    TS_HOSTNAME="magnet-convos-${MACHINE_SUFFIX}"
-    /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${TS_HOSTNAME} --ssh --accept-dns=false
-    echo "Connected to Tailscale as ${TS_HOSTNAME}"
+    /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=magnet-convos --ssh --accept-dns=false
+    echo "Connected to Tailscale as magnet-convos"
 else
     echo "TAILSCALE_AUTHKEY not set, skipping Tailscale"
 fi
