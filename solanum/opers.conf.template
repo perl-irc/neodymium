@@ -1,10 +1,10 @@
 /* ABOUTME: Operator configuration for Solanum IRCd
-/* ABOUTME: Tailscale users get admin access with shared password
+/* ABOUTME: Tailscale users get admin access - Tailscale ACLs provide authentication
 
-/* Any Tailscale connection can oper with: /OPER admin <password> */
+/* Any Tailscale connection can oper with: /OPER admin (no password needed) */
 operator "admin" {
     user = "*@*.${TAILSCALE_DOMAIN}", "*@100.*", "*@localhost", "*@127.0.0.1";
-    password = "${OPERATOR_PASSWORD_HASH}";
+    password = "";
     privset = "admin";
     snomask = "+Zbfkrsuy";
 };

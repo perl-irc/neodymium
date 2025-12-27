@@ -33,7 +33,9 @@ sleep 3
 # Connect to Tailscale network (using same logic as atheme)
 /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${SERVER_NAME} --ssh --accept-dns=false
 
-echo "Connected to Tailscale as ${HOSTNAME}"
+# Get Tailscale IP for direct client connections (bypasses go-mmproxy)
+export TAILSCALE_IP=$(/usr/local/bin/tailscale ip -4)
+echo "Connected to Tailscale as ${SERVER_NAME} (${TAILSCALE_IP})"
 
 # Set up routing rules for go-mmproxy
 # These rules ensure that responses from Solanum (with spoofed source IPs) get routed
@@ -217,12 +219,6 @@ fi
 echo "Processing server-specific configuration..."
 if [ -f /opt/solanum/conf/server.conf.template ]; then
     echo "Building complete ircd.conf from server.conf + common.conf + opers.conf"
-
-    # Hash the operator password for Solanum (requires encrypted passwords)
-    if [ -n "${OPERATOR_PASSWORD}" ]; then
-        export OPERATOR_PASSWORD_HASH=$(mkpasswd "${OPERATOR_PASSWORD}")
-        echo "Operator password hashed for IRC config"
-    fi
 
     # Process all templates
     envsubst < /opt/solanum/conf/server.conf.template > /tmp/server.conf
