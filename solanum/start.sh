@@ -89,6 +89,15 @@ fi
 
 echo "go-mmproxy started (PIDs: $MMPROXY_6667_PID, $MMPROXY_6697_PID)"
 
+# Start fly-replay HTTP responder for routing web traffic to Convos
+# Listens on port 8080 and returns fly-replay header to redirect to magnet-convos
+echo "Starting fly-replay HTTP responder on port 8080..."
+(while true; do
+    echo -e "HTTP/1.1 200 OK\r\nfly-replay: app=magnet-convos\r\nContent-Length: 0\r\n\r\n" | nc -l -p 8080 > /dev/null 2>&1
+done) &
+REPLAY_PID=$!
+echo "fly-replay responder started (PID: $REPLAY_PID)"
+
 chown ircd:ircd -R /opt/solanum
 find /opt/solanum -type d -exec chmod 755 {} \;
 find /opt/solanum -type f -exec chmod 644 {} \;
