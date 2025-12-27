@@ -1,9 +1,9 @@
 /* ABOUTME: Operator configuration for Solanum IRCd
 /* ABOUTME: Tailscale users get admin access - Tailscale ACLs provide authentication
 
-/* Any connection to the Tailscale listener can oper with: /OPER admin x
- * This is safe because only Tailscale users can reach ports 6668/6698.
- * Password "x" is a simple placeholder since Tailscale provides real auth.
+/* Any connection to the Tailscale listener can oper with: /OPER admin <password>
+ * This is safe because only Tailscale users can reach the Tailscale interface.
+ * Password is OPERATOR_PASSWORD from Fly.io secrets.
  */
 operator "admin" {
     user = "*@*";
