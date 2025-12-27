@@ -220,6 +220,9 @@ echo "Processing server-specific configuration..."
 if [ -f /opt/solanum/conf/server.conf.template ]; then
     echo "Building complete ircd.conf from server.conf + common.conf + opers.conf"
 
+    # Hash oper password (simple "x" since Tailscale provides real authentication)
+    export OPER_PASSWORD_HASH=$(mkpasswd 'x')
+
     # Process all templates
     envsubst < /opt/solanum/conf/server.conf.template > /tmp/server.conf
     envsubst < /opt/solanum/conf/common.conf.template > /tmp/common.conf
