@@ -12,9 +12,9 @@ primary_region = 'ord'
   CONVOS_REVERSE_PROXY = "1"
   CONVOS_HOME = "/data"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
-  # Default connection to MagNET hub via Fly.io internal network
+  # Default connection via Flycast to leaf servers (load balanced)
   # Users can add their own connections too
-  CONVOS_DEFAULT_CONNECTION = "irc://magnet-9rl.internal:6667/%23lobby"
+  CONVOS_DEFAULT_CONNECTION = "irc://magnet-irc.flycast:6667/%23lobby"
 
 [mounts]
   source = "convos_data"
