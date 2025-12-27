@@ -20,12 +20,9 @@ if [ -z "${SERVER_NAME}" ]; then
     echo "Dynamic identity: SERVER_NAME=${SERVER_NAME}, SERVER_SID=${SERVER_SID}"
 fi
 
-# Determine Tailscale state directory (use persistent volume if available)
-TAILSCALE_STATE_DIR="${TAILSCALE_STATE_DIR:-/var/lib/tailscale}"
-mkdir -p "${TAILSCALE_STATE_DIR}"
-
-# Start Tailscale daemon in background with persistent state
-/usr/local/bin/tailscaled --state="${TAILSCALE_STATE_DIR}/tailscaled.state" --socket=/var/run/tailscale/tailscaled.sock &
+# Start Tailscale daemon in background with in-memory state (ephemeral)
+# Using --state=mem: ensures node is auto-removed when container stops
+/usr/local/bin/tailscaled --state=mem: --socket=/var/run/tailscale/tailscaled.sock &
 
 # Wait for daemon to start
 sleep 3

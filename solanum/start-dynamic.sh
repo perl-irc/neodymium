@@ -5,8 +5,9 @@
 
 set -e
 
-# Start Tailscale daemon in background
-/usr/local/bin/tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock &
+# Start Tailscale daemon with in-memory state (ephemeral)
+# Using --state=mem: ensures node is auto-removed when container stops
+/usr/local/bin/tailscaled --state=mem: --socket=/var/run/tailscale/tailscaled.sock &
 
 # Wait for daemon to start
 sleep 3
