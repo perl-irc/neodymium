@@ -17,10 +17,14 @@ mkdir -p /var/lib/tailscale
 /usr/local/bin/tailscaled --state=/var/lib/tailscale/tailscaled.state &
 sleep 2
 
-# Connect to Tailscale if auth key is provided
+# Connect to Tailscale if auth key is provided (non-blocking)
+# Run in background so Convos starts even if Tailscale auth fails
 if [ -n "${TAILSCALE_AUTHKEY}" ]; then
-    /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=magnet-convos --ssh --accept-dns=false
-    echo "Connected to Tailscale as magnet-convos"
+    (
+        /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=magnet-convos --ssh --accept-dns=false && \
+        echo "Connected to Tailscale as magnet-convos" || \
+        echo "Tailscale connection failed (non-fatal)"
+    ) &
 else
     echo "TAILSCALE_AUTHKEY not set, skipping Tailscale"
 fi
