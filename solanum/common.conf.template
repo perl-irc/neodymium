@@ -64,17 +64,18 @@ listen {
 
 /* Tailscale listener - direct access for authenticated Tailscale users
  * Bypasses go-mmproxy since Tailscale provides its own authentication via ACLs.
- * Connect via: ${SERVER_NAME}.${TAILSCALE_DOMAIN}:6667
+ * Connect via: ${SERVER_NAME}.${TAILSCALE_DOMAIN}:6668 (plain) or :6698 (SSL)
+ * Uses different ports to avoid conflict with go-mmproxy on 6667/6697
  */
 listen {
     host = "${TAILSCALE_IP}";
-    port = 6667;
+    port = 6668;
 };
 
 listen {
     host = "${TAILSCALE_IP}";
-    port = 6697;
-    sslport = 6697;
+    port = 6698;
+    sslport = 6698;
 };
 
 
