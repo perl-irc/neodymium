@@ -1,7 +1,7 @@
 # ABOUTME: Convos IRC web client for MagNET with Tailscale SSH access
 # ABOUTME: Persistent IRC bouncer with modern web UI, connects via Fly.io internal network
 
-FROM ghcr.io/convos-chat/convos:stable
+FROM ghcr.io/convos-chat/convos:v8.07
 
 USER root
 
