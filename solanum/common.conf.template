@@ -64,18 +64,18 @@ listen {
 
 /* Tailscale listener - direct access for authenticated Tailscale users
  * Bypasses go-mmproxy since Tailscale provides its own authentication via ACLs.
- * Connect via: ${SERVER_NAME}.${TAILSCALE_DOMAIN}:6668 (plain) or :6698 (SSL)
- * Uses different ports to avoid conflict with go-mmproxy on 6667/6697
+ * Connect via: ${SERVER_NAME}.${TAILSCALE_DOMAIN}:6667 (plain) or :6697 (SSL)
+ * go-mmproxy binds to eth0 (Fly.io), Solanum binds to tailscale0 - no conflict
  */
 listen {
     host = "${TAILSCALE_IP}";
-    port = 6668;
+    port = 6667;
 };
 
 listen {
     host = "${TAILSCALE_IP}";
-    port = 6698;
-    sslport = 6698;
+    port = 6697;
+    sslport = 6697;
 };
 
 
