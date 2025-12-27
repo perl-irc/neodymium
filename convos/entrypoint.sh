@@ -8,8 +8,11 @@ sleep 2
 
 # Connect to Tailscale if auth key is provided
 if [ -n "${TAILSCALE_AUTHKEY}" ]; then
-    /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=magnet-convos --ssh --accept-dns=false
-    echo "Connected to Tailscale as magnet-convos"
+    # Use machine ID suffix to avoid hostname clashes on restart
+    MACHINE_SUFFIX=$(echo "${FLY_MACHINE_ID:-local}" | cut -c1-6)
+    TS_HOSTNAME="magnet-convos-${MACHINE_SUFFIX}"
+    /usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${TS_HOSTNAME} --ssh --accept-dns=false
+    echo "Connected to Tailscale as ${TS_HOSTNAME}"
 else
     echo "TAILSCALE_AUTHKEY not set, skipping Tailscale"
 fi

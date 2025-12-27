@@ -27,12 +27,15 @@ fi
 # Wait for daemon to start
 sleep 3
 
-# Connect to Tailscale network (using same logic as atheme)
-/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${SERVER_NAME} --ssh --accept-dns=false
+# Connect to Tailscale network
+# Use machine ID suffix to avoid hostname clashes on restart/multi-instance
+MACHINE_SUFFIX=$(echo "${FLY_MACHINE_ID:-local}" | cut -c1-6)
+TS_HOSTNAME="${SERVER_NAME}-${MACHINE_SUFFIX}"
+/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${TS_HOSTNAME} --ssh --accept-dns=false
 
 # Get Tailscale IP for direct client connections (bypasses go-mmproxy)
 export TAILSCALE_IP=$(/usr/local/bin/tailscale ip -4)
-echo "Connected to Tailscale as ${SERVER_NAME} (${TAILSCALE_IP})"
+echo "Connected to Tailscale as ${TS_HOSTNAME} (${TAILSCALE_IP})"
 
 # Set up routing rules for go-mmproxy
 # These rules ensure that responses from Solanum (with spoofed source IPs) get routed

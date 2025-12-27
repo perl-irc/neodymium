@@ -12,10 +12,12 @@ set -e
 sleep 5
 
 # Connect to Tailscale network
-HOSTNAME=${SERVER_NAME:-atheme-${FLY_REGION:-unknown}}
-/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${HOSTNAME} --ssh --accept-dns=true
+# Use machine ID suffix to avoid hostname clashes on restart/multi-instance
+MACHINE_SUFFIX=$(echo "${FLY_MACHINE_ID:-local}" | cut -c1-6)
+TS_HOSTNAME="${SERVER_NAME:-atheme}-${MACHINE_SUFFIX}"
+/usr/local/bin/tailscale up --auth-key=${TAILSCALE_AUTHKEY} --hostname=${TS_HOSTNAME} --ssh --accept-dns=true
 
-echo "Connected to Tailscale as ${HOSTNAME}"
+echo "Connected to Tailscale as ${TS_HOSTNAME}"
 
 # Fix permissions for volume mount (happens after volume is attached)
 echo "Setting up volume mount permissions..."
