@@ -6,6 +6,7 @@ name: Deploy to Fly.io
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -25,6 +26,8 @@ jobs:
             config: servers/magnet-irc/fly.toml
           - app: magnet-atheme
             config: servers/magnet-atheme/fly.toml
+          - app: magnet-convos
+            config: servers/magnet-convos/fly.toml
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
