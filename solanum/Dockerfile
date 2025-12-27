@@ -39,6 +39,7 @@ RUN apk update && apk add --no-cache \
     gettext \
     su-exec \
     netcat-openbsd \
+    socat \
     procps \
     libtool \
     libltdl \

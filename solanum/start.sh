@@ -90,11 +90,10 @@ fi
 echo "go-mmproxy started (PIDs: $MMPROXY_6667_PID, $MMPROXY_6697_PID)"
 
 # Start fly-replay HTTP responder for routing web traffic to Convos
+# Uses socat in fork mode to handle concurrent connections (including WebSocket upgrades)
 # Listens on port 8080 and returns fly-replay header to redirect to magnet-convos
 echo "Starting fly-replay HTTP responder on port 8080..."
-(while true; do
-    echo -e "HTTP/1.1 200 OK\r\nfly-replay: app=magnet-convos\r\nContent-Length: 0\r\n\r\n" | nc -l -p 8080 > /dev/null 2>&1
-done) &
+socat TCP-LISTEN:8080,fork,reuseaddr SYSTEM:'echo -e "HTTP/1.1 200 OK\r\nfly-replay: app=magnet-convos\r\nContent-Length: 0\r\n\r\n"' &
 REPLAY_PID=$!
 echo "fly-replay responder started (PID: $REPLAY_PID)"
 
