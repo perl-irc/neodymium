@@ -1,9 +1,17 @@
 #!/bin/sh
 # ABOUTME: Solanum IRCd startup script with dynamic host configuration based on Fly.io region
 # ABOUTME: Generates SID and server name dynamically from FLY_REGION and machine count
-# Cache buster: v2024-08-30-1
+# Cache buster: v2024-12-27-1
 
 set -e
+
+# Trap signals to ensure clean Tailscale logout
+cleanup() {
+    echo "Received shutdown signal, logging out of Tailscale..."
+    /usr/local/bin/tailscale logout 2>/dev/null || true
+    exit 0
+}
+trap cleanup TERM INT
 
 # Start Tailscale daemon with in-memory state (ephemeral)
 # Node is auto-removed from tailnet when container stops

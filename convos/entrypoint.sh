@@ -2,6 +2,15 @@
 # ABOUTME: Convos startup script with Tailscale SSH access
 # ABOUTME: Starts Tailscale for admin SSH, then runs Convos
 
+# Trap signals to ensure clean Tailscale logout
+cleanup() {
+    echo "Received shutdown signal, logging out of Tailscale..."
+    /usr/local/bin/tailscale logout 2>/dev/null || true
+    kill $CONVOS_PID 2>/dev/null || true
+    exit 0
+}
+trap cleanup TERM INT
+
 # Start Tailscale daemon with in-memory state (ephemeral)
 /usr/local/bin/tailscaled --state=mem: &
 sleep 2
@@ -17,5 +26,7 @@ else
     echo "TAILSCALE_AUTHKEY not set, skipping Tailscale"
 fi
 
-# Start Convos (exec replaces shell for proper signal handling)
-exec /app/script/convos daemon
+# Start Convos in background and wait (so trap can catch signals)
+/app/script/convos daemon &
+CONVOS_PID=$!
+wait $CONVOS_PID

@@ -1,9 +1,17 @@
 #!/bin/sh
 # ABOUTME: Solanum IRCd startup script with Fly.io networking and go-mmproxy integration
 # ABOUTME: Handles PROXY protocol translation, password generation, and IRC server startup
-# Cache buster: v2024-12-26-1
+# Cache buster: v2024-12-26-2
 
 set -e
+
+# Trap signals to ensure clean Tailscale logout
+cleanup() {
+    echo "Received shutdown signal, logging out of Tailscale..."
+    /usr/local/bin/tailscale logout 2>/dev/null || true
+    exit 0
+}
+trap cleanup TERM INT
 
 # Dynamic identity from FLY_REGION for anycast leaf servers
 # Hub servers set SERVER_NAME explicitly in fly.toml, leaf servers derive it

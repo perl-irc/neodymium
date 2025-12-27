@@ -4,6 +4,14 @@
 
 set -e
 
+# Trap signals to ensure clean Tailscale logout
+cleanup() {
+    echo "Received shutdown signal, logging out of Tailscale..."
+    /usr/local/bin/tailscale logout 2>/dev/null || true
+    exit 0
+}
+trap cleanup TERM INT
+
 # Start Tailscale daemon with in-memory state (ephemeral)
 # Node is auto-removed from tailnet when container stops
 /usr/local/bin/tailscaled --state=mem: &
