@@ -53,7 +53,7 @@ ip -6 route add local ::/0 dev lo table 123 2>/dev/null || true
 echo "Routing rules configured"
 
 # Get Fly.io eth0 IP for go-mmproxy binding (separate from Tailscale)
-FLY_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+FLY_IP=$(ip -4 addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1 | head -1)
 echo "Fly.io interface IP: ${FLY_IP}"
 
 # Start go-mmproxy instances for client ports (bound to Fly.io interface only)
