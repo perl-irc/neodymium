@@ -1,0 +1,94 @@
+/* ABOUTME: MagNET theme for Convos - minimalist black/white design
+ * ABOUTME: Matches irc.perl.org aesthetic, deploy via: fly sftp shell -a magnet-convos
+ *
+ * name: MagNET
+ * color-scheme: light
+ *
+ * Minimalist black/white theme matching irc.perl.org aesthetic
+ */
+
+:root {
+  /* Base colors - stark black on white */
+  --body-bg: #ffffff;
+  --text-color: #000000;
+  --link-color: #000000;
+  --hr-border: 1px solid #000000;
+
+  /* Status colors - muted */
+  --error-color: #990000;
+  --success-color: #006600;
+
+  /* Focus and highlight */
+  --focus-outline: 0 0 1px 2px rgba(0, 0, 0, 0.3);
+  --highlight-color-bg: #eeeeee;
+
+  /* Code blocks */
+  --code-bg: #f0f0f0;
+  --syntax-hl-base: #000000;
+  --syntax-hl-base-bg: #f8f8f8;
+
+  /* Buttons - simple black/white */
+  --button-bg: #000000;
+  --button-border: 1px solid #000000;
+  --button-color: #ffffff;
+  --button-danger-bg: #660000;
+  --button-disabled-bg: #cccccc;
+  --button-disabled-border: #999999;
+  --button-focus-outline: 2px solid #333333;
+
+  /* Inputs */
+  --input-focus-outline: 2px solid #000000;
+  --input-bg: #ffffff;
+  --input-border: 1px solid #000000;
+
+  /* Autocomplete */
+  --autocomplete-focus: #000000;
+  --autocomplete-focus-bg: #f0f0f0;
+
+  /* Sidebar - dark left, light right */
+  --sidebar-right-bg: #f8f8f8;
+  --sidebar-left-bg: #1a1a1a;
+  --sidebar-left-border: 1px solid #000000;
+  --sidebar-left-frozen-color: #888888;
+  --sidebar-left-text: #ffffff;
+  --sidebar-left-border-bottom: #333333;
+  --sidebar-left-search-placeholder-color: #888888;
+  --sidebar-left-search-focus-bg: #333333;
+
+  /* CMS/Landing page */
+  --cms-bg: #ffffff;
+  --cms-text: #000000;
+
+  /* Syntax highlighting - monochrome */
+  --syntax-hl-addition: #006600;
+  --syntax-hl-attr: #000000;
+  --syntax-hl-attribute: #333333;
+  --syntax-hl-built-in: #000000;
+  --syntax-hl-bullet: #000000;
+  --syntax-hl-comment: #666666;
+  --syntax-hl-deletion: #990000;
+  --syntax-hl-doctag: #000000;
+  --syntax-hl-formula: #000000;
+  --syntax-hl-keyword: #000000;
+  --syntax-hl-link: #000000;
+  --syntax-hl-literal: #000000;
+  --syntax-hl-meta-string: #333333;
+  --syntax-hl-meta: #000000;
+  --syntax-hl-name: #000000;
+  --syntax-hl-number: #000000;
+  --syntax-hl-quote: #666666;
+  --syntax-hl-regexp: #333333;
+  --syntax-hl-section: #000000;
+  --syntax-hl-selector-attr: #000000;
+  --syntax-hl-selector-class: #000000;
+  --syntax-hl-selector-id: #000000;
+  --syntax-hl-selector-pseudo: #000000;
+  --syntax-hl-selector-tag: #000000;
+  --syntax-hl-string: #333333;
+  --syntax-hl-subst: #000000;
+  --syntax-hl-symbol: #000000;
+  --syntax-hl-template-variable: #000000;
+  --syntax-hl-title: #000000;
+  --syntax-hl-type: #000000;
+  --syntax-hl-variable: #000000;
+}
