@@ -58,36 +58,33 @@ ip -6 route add local ::/0 dev lo table 123 2>/dev/null || true
 
 echo "Routing rules configured"
 
-# Get Fly.io eth0 IP for go-mmproxy binding (separate from Tailscale)
-FLY_IP=$(ip -4 addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1 | head -1)
-echo "Fly.io interface IP: ${FLY_IP}"
-
-# Start go-mmproxy instances for client ports (bound to Fly.io interface only)
+# Start go-mmproxy instances for client ports
 # go-mmproxy unwraps PROXY protocol from Fly.io edge and spoofs client IP
-# Binding to eth0 IP leaves Tailscale interface free for direct connections
+# IMPORTANT: Fly.io routes to 0.0.0.0:<internal_port>, so we must bind to 0.0.0.0
+# Using ports 6668/6698 to avoid conflict with Solanum's Tailscale listener on 6667/6697
 echo "Starting go-mmproxy for PROXY protocol handling..."
 
-# Plain IRC (6667 -> 16667) - Fly.io interface only
-/usr/local/bin/go-mmproxy -l ${FLY_IP}:6667 -4 127.0.0.1:16667 -6 [::1]:16667 -v 1 &
-MMPROXY_6667_PID=$!
+# Plain IRC (external 6667 -> internal 6668 -> Solanum 16667)
+/usr/local/bin/go-mmproxy -l 0.0.0.0:6668 -4 127.0.0.1:16667 -6 [::1]:16667 -v 1 &
+MMPROXY_6668_PID=$!
 
-# SSL IRC (6697 -> 16697) - Fly.io interface only
-/usr/local/bin/go-mmproxy -l ${FLY_IP}:6697 -4 127.0.0.1:16697 -6 [::1]:16697 -v 1 &
-MMPROXY_6697_PID=$!
+# SSL IRC (external 6697 -> internal 6698 -> Solanum 16697)
+/usr/local/bin/go-mmproxy -l 0.0.0.0:6698 -4 127.0.0.1:16697 -6 [::1]:16697 -v 1 &
+MMPROXY_6698_PID=$!
 
 sleep 1
 
 # Verify go-mmproxy is running
-if ! kill -0 $MMPROXY_6667_PID 2>/dev/null; then
-    echo "ERROR: go-mmproxy for port 6667 failed to start"
+if ! kill -0 $MMPROXY_6668_PID 2>/dev/null; then
+    echo "ERROR: go-mmproxy for port 6668 failed to start"
     exit 1
 fi
-if ! kill -0 $MMPROXY_6697_PID 2>/dev/null; then
-    echo "ERROR: go-mmproxy for port 6697 failed to start"
+if ! kill -0 $MMPROXY_6698_PID 2>/dev/null; then
+    echo "ERROR: go-mmproxy for port 6698 failed to start"
     exit 1
 fi
 
-echo "go-mmproxy started (PIDs: $MMPROXY_6667_PID, $MMPROXY_6697_PID)"
+echo "go-mmproxy started (PIDs: $MMPROXY_6668_PID, $MMPROXY_6698_PID)"
 
 # Start fly-replay HTTP responder for routing web traffic to Convos
 # Uses socat in fork mode to handle concurrent connections (including WebSocket upgrades)
@@ -313,12 +310,12 @@ check_solanum() {
 
 # Function to check if go-mmproxy instances are still running
 check_mmproxy() {
-    if ! pgrep -f "go-mmproxy.*:6667" > /dev/null; then
-        echo "go-mmproxy (6667) process died"
+    if ! pgrep -f "go-mmproxy.*:6668" > /dev/null; then
+        echo "go-mmproxy (6668) process died"
         return 1
     fi
-    if ! pgrep -f "go-mmproxy.*:6697" > /dev/null; then
-        echo "go-mmproxy (6697) process died"
+    if ! pgrep -f "go-mmproxy.*:6698" > /dev/null; then
+        echo "go-mmproxy (6698) process died"
         return 1
     fi
 }

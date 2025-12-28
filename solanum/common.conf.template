@@ -49,7 +49,6 @@ listen {
 };
 
 listen {
-    port = 16697;
     sslport = 16697;
 };
 
@@ -73,7 +72,6 @@ listen {
 
 listen {
     host = "${TAILSCALE_IP}";
-    port = 6697;
     sslport = 6697;
 };
 
