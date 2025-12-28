@@ -86,36 +86,13 @@ fi
 
 echo "go-mmproxy started (PIDs: $MMPROXY_6668_PID, $MMPROXY_6698_PID)"
 
-# Start fly-replay HTTP responder for routing web traffic to Convos
-# Uses socat in fork mode to handle concurrent connections (including WebSocket upgrades)
-# Listens on port 8080 and returns fly-replay header to redirect to magnet-convos
-echo "Starting fly-replay HTTP responder on port 8080..."
-
-# Create response file with proper CRLF
-# Using awk to add \r before each newline
-awk 'BEGIN{ORS="\r\n"} {print}' << 'EOF' > /tmp/fly-replay-response
-HTTP/1.1 200 OK
-fly-replay: app=magnet-convos
-Content-Length: 0
-
-EOF
-
-# Create handler script that reads request then sends response
-cat > /tmp/fly-replay.sh << 'SCRIPT'
-#!/bin/sh
-# Read and discard HTTP request headers until blank line
-while IFS= read -r line; do
-    # Strip CR if present and check for empty line
-    clean=$(printf '%s' "$line" | tr -d '\r')
-    [ -z "$clean" ] && break
-done
-# Send the fly-replay response
-cat /tmp/fly-replay-response
-SCRIPT
-chmod +x /tmp/fly-replay.sh
-socat TCP-LISTEN:8080,fork,reuseaddr EXEC:/tmp/fly-replay.sh &
-REPLAY_PID=$!
-echo "fly-replay responder started (PID: $REPLAY_PID)"
+# Start nginx for ACME challenges and fly-replay to Convos
+# Serves /.well-known/acme-challenge/ for Let's Encrypt
+# Returns fly-replay header for everything else to route to magnet-convos
+echo "Starting nginx for ACME challenges and fly-replay..."
+mkdir -p /var/www/.well-known/acme-challenge
+nginx
+echo "nginx started"
 
 chown ircd:ircd -R /opt/solanum
 find /opt/solanum -type d -exec chmod 755 {} \;
@@ -198,17 +175,16 @@ if [ -n "${SSL_DOMAINS}" ] && [ -n "${ADMIN_EMAIL}" ]; then
     echo "Primary domain: $PRIMARY_DOMAIN"
     echo "All domains: $DOMAIN_ARGS"
 
-    # Try to get/renew Let's Encrypt certificate
+    # Try to get/renew Let's Encrypt certificate using webroot mode
+    # nginx serves /.well-known/acme-challenge/ from /var/www
     if certbot certonly \
-        --standalone \
+        --webroot \
+        --webroot-path /var/www \
         --non-interactive \
         --agree-tos \
         --email "${ADMIN_EMAIL}" \
         $DOMAIN_ARGS \
-        --keep-until-expiring \
-        --cert-path "$SSL_CERT" \
-        --key-path "$SSL_KEY" \
-        --http-01-port 8080 2>/dev/null; then
+        --keep-until-expiring; then
 
         echo "Let's Encrypt certificate obtained successfully"
 
