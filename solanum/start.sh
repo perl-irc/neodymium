@@ -91,6 +91,8 @@ echo "go-mmproxy started (PIDs: $MMPROXY_6668_PID, $MMPROXY_6698_PID)"
 # Returns fly-replay header for everything else to route to magnet-convos
 echo "Starting nginx for ACME challenges and fly-replay..."
 mkdir -p /var/www/.well-known/acme-challenge
+# Make webroot world-readable so nginx (running as 'nginx' user) can serve files
+chmod -R 755 /var/www
 nginx
 echo "nginx started"
 
@@ -177,14 +179,16 @@ if [ -n "${SSL_DOMAINS}" ] && [ -n "${ADMIN_EMAIL}" ]; then
 
     # Try to get/renew Let's Encrypt certificate using webroot mode
     # nginx serves /.well-known/acme-challenge/ from /var/www
+    # Use RSA keys for compatibility with Solanum's SSL implementation
     if certbot certonly \
         --webroot \
         --webroot-path /var/www \
         --non-interactive \
         --agree-tos \
         --email "${ADMIN_EMAIL}" \
-        $DOMAIN_ARGS \
-        --keep-until-expiring; then
+        --key-type rsa \
+        --rsa-key-size 4096 \
+        $DOMAIN_ARGS; then
 
         echo "Let's Encrypt certificate obtained successfully"
 
