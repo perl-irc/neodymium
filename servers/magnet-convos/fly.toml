@@ -14,6 +14,10 @@ primary_region = 'ord'
   # Default connection via Flycast to leaf servers (load balanced)
   CONVOS_DEFAULT_CONNECTION = "irc://magnet-irc.flycast:6667/%23perl-help"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
+  # Branding
+  CONVOS_ORGANIZATION_NAME = "MagNET - irc.perl.org"
+  CONVOS_ORGANIZATION_URL = "https://irc.perl.org"
+  CONVOS_CONTACT = "mailto:chris@prather.org"
 
 [mounts]
   source = "convos_data"
