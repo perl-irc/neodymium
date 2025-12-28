@@ -12,7 +12,8 @@ primary_region = 'ord'
   CONVOS_REVERSE_PROXY = "1"
   CONVOS_HOME = "/data"
   # Default connection via Flycast to leaf servers (load balanced)
-  CONVOS_DEFAULT_CONNECTION = "irc://magnet-irc.flycast:6667/%23perl-help"
+  # Uses irc.perl.org alias mapped to flycast IP in entrypoint.sh
+  CONVOS_DEFAULT_CONNECTION = "irc://irc.perl.org:6667/%23perl-help"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
   # Branding
   CONVOS_ORGANIZATION_NAME = "MagNET - irc.perl.org"
