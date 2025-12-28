@@ -270,6 +270,12 @@ cleanup() {
     echo "Cleanup complete"
 }
 
+# Remove stale PID file from previous instance (volume persists across restarts)
+if [ -f /opt/solanum/etc/ircd.pid ]; then
+    echo "Removing stale PID file from previous instance..."
+    rm -f /opt/solanum/etc/ircd.pid
+fi
+
 # Start Solanum as ircd user (foreground mode for debugging)
 echo "Starting Solanum in foreground mode for debugging..."
 
