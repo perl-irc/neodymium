@@ -4,6 +4,9 @@
 
 set -e
 
+# Map irc.perl.org to internal flycast address for display name
+echo "$(getent hosts magnet-irc.flycast | awk '{print $1}') irc.perl.org" >> /etc/hosts
+
 # Start Tailscale daemon in background
 mkdir -p /var/lib/tailscale
 /usr/local/bin/tailscaled --state=/var/lib/tailscale/tailscaled.state &
