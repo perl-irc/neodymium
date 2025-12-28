@@ -1,0 +1,87 @@
+# ABOUTME: GitHub Actions workflow for running tests on PRs and main branch
+# ABOUTME: Validates configuration files, Dockerfiles, and runs Perl test suite
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+    container: perl:stable-slim
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Test Suite
+        run: prove -v t/
+
+  lint:
+    name: Lint and Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Dockerfile syntax
+        run: |
+          for dockerfile in solanum/Dockerfile atheme/Dockerfile convos/Dockerfile; do
+            if [ -f "$dockerfile" ]; then
+              echo "Validating $dockerfile..."
+              if ! grep -q "^FROM" "$dockerfile"; then
+                echo "ERROR: $dockerfile missing FROM instruction"
+                exit 1
+              fi
+              echo "$dockerfile syntax OK"
+            fi
+          done
+
+      - name: Validate fly.toml files
+        run: |
+          for config in servers/magnet-*/fly.toml; do
+            if [ -f "$config" ]; then
+              echo "Validating $config..."
+              if ! grep -q "^app = " "$config"; then
+                echo "ERROR: $config missing app name"
+                exit 1
+              fi
+              if ! grep -q "primary_region" "$config"; then
+                echo "ERROR: $config missing primary_region"
+                exit 1
+              fi
+              echo "$config structure OK"
+            fi
+          done
+
+      - name: Validate configuration templates
+        run: |
+          # Check that required template files exist
+          required_templates=(
+            "solanum/common.conf.template"
+            "solanum/opers.conf.template"
+            "atheme/atheme.conf.template"
+          )
+
+          for template in "${required_templates[@]}"; do
+            if [ ! -f "$template" ]; then
+              echo "ERROR: Required template missing: $template"
+              exit 1
+            fi
+            echo "$template exists"
+          done
+
+          # Check server-specific configs exist
+          for server_dir in servers/magnet-9rl servers/magnet-irc; do
+            if [ ! -f "$server_dir/server.conf" ]; then
+              echo "ERROR: Missing server.conf for $server_dir"
+              exit 1
+            fi
+            echo "$server_dir/server.conf exists"
+          done

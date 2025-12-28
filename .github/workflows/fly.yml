@@ -1,5 +1,5 @@
 # ABOUTME: GitHub Actions workflow for automated Fly.io deployment
-# ABOUTME: Deploys hub, anycast leaves, and services on push to main
+# ABOUTME: Deploys hub, anycast leaves, and services on push to main, then runs smoke tests
 
 name: Deploy to Fly.io
 
@@ -34,3 +34,21 @@ jobs:
 
       - name: Deploy ${{ matrix.app }}
         run: flyctl deploy --config ${{ matrix.config }} --app ${{ matrix.app }} --remote-only
+
+  smoke-test:
+    name: Post-Deploy Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    container: perl:stable-slim
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for services to stabilize
+        run: sleep 30
+
+      - name: Run smoke tests
+        env:
+          SMOKE_TEST: 1
+          IRC_HUB_HOST: magnet-9rl.fly.dev
+          IRC_LEAF_HOST: magnet-irc.fly.dev
+        run: prove -v t/01-smoke.t
