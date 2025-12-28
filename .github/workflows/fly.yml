@@ -49,6 +49,5 @@ jobs:
       - name: Run smoke tests
         env:
           SMOKE_TEST: 1
-          IRC_HUB_HOST: magnet-9rl.fly.dev
           IRC_LEAF_HOST: magnet-irc.fly.dev
         run: prove -v t/01-smoke.t

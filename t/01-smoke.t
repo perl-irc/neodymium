@@ -14,7 +14,8 @@ unless ($ENV{SMOKE_TEST}) {
 }
 
 # Test configuration
-my $HUB_HOST = $ENV{IRC_HUB_HOST} // 'magnet-9rl.fly.dev';
+# Note: Hub (magnet-9rl) is S2S only - no external client ports
+# All client tests go through the leaf, which connects to the hub
 my $LEAF_HOST = $ENV{IRC_LEAF_HOST} // 'magnet-irc.fly.dev';
 my $IRC_PORT = 6667;
 my $TIMEOUT = 10;
@@ -193,20 +194,7 @@ sub check_service {
     return $service_responded;
 }
 
-# Test 1: Hub accepts connections
-subtest 'Hub accepts IRC connections' => sub {
-    my $result = irc_connect($HUB_HOST);
-
-    ok($result, "Connected to hub at $HUB_HOST:$IRC_PORT");
-
-    if ($result) {
-        ok($result->{welcomed}, "Received IRC welcome (001) from hub");
-        like($result->{server_name}, qr/magnet.*internal/i,
-             "Server identifies as magnet network");
-    }
-};
-
-# Test 2: Leaf accepts connections
+# Test 1: Leaf accepts connections
 subtest 'Leaf accepts IRC connections' => sub {
     my $result = irc_connect($LEAF_HOST);
 
@@ -219,11 +207,11 @@ subtest 'Leaf accepts IRC connections' => sub {
     }
 };
 
-# Test 3: Servers are linked
+# Test 2: Servers are linked
 subtest 'Servers are linked' => sub {
-    my $links = irc_get_links($HUB_HOST);
+    my $links = irc_get_links($LEAF_HOST);
 
-    ok(scalar @$links > 0, "Got server links from hub");
+    ok(scalar @$links > 0, "Got server links from leaf");
 
     if (@$links) {
         # Check that we have the hub
@@ -246,28 +234,28 @@ subtest 'Servers are linked' => sub {
     }
 };
 
-# Test 4: NickServ responds
+# Test 3: NickServ responds
 subtest 'NickServ responds' => sub {
-    my $responds = check_service($HUB_HOST, 'NickServ');
+    my $responds = check_service($LEAF_HOST, 'NickServ');
     ok($responds, "NickServ responds to HELP command");
 };
 
-# Test 5: ChanServ responds
+# Test 4: ChanServ responds
 subtest 'ChanServ responds' => sub {
-    my $responds = check_service($HUB_HOST, 'ChanServ');
+    my $responds = check_service($LEAF_HOST, 'ChanServ');
     ok($responds, "ChanServ responds to HELP command");
 };
 
-# Test 6: Client IP preservation (check for non-localhost hostname)
+# Test 5: Client IP preservation (check for non-localhost hostname)
 subtest 'Client IP preservation via go-mmproxy' => sub {
     my $sock = IO::Socket::INET->new(
-        PeerAddr => $HUB_HOST,
+        PeerAddr => $LEAF_HOST,
         PeerPort => $IRC_PORT,
         Proto    => 'tcp',
         Timeout  => $TIMEOUT,
     );
 
-    ok($sock, "Connected to hub for IP test");
+    ok($sock, "Connected to leaf for IP test");
 
     if ($sock) {
         $sock->timeout($TIMEOUT);
