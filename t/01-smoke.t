@@ -18,7 +18,7 @@ unless ($ENV{SMOKE_TEST}) {
 # All client tests go through the leaf, which connects to the hub
 my $LEAF_HOST = $ENV{IRC_LEAF_HOST} // 'magnet-irc.fly.dev';
 my $IRC_PORT = 6667;
-my $TIMEOUT = 10;
+my $TIMEOUT = 20;
 
 # Helper: Connect to IRC and get initial response
 sub irc_connect {
