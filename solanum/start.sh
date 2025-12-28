@@ -192,6 +192,12 @@ if [ -n "${SSL_DOMAINS}" ] && [ -n "${ADMIN_EMAIL}" ]; then
 
         echo "Let's Encrypt certificate obtained successfully"
 
+        # Fix permissions so ircd user can read certificates through symlinks
+        # Let's Encrypt creates directories with 700 permissions by default
+        chmod 755 /etc/letsencrypt/archive /etc/letsencrypt/live
+        chmod 755 "/etc/letsencrypt/archive/${PRIMARY_DOMAIN}"
+        chmod 755 "/etc/letsencrypt/live/${PRIMARY_DOMAIN}"
+
         # Create symlinks to Let's Encrypt certificates (using primary domain)
         ln -sf "/etc/letsencrypt/live/${PRIMARY_DOMAIN}/fullchain.pem" "$SSL_CERT"
         ln -sf "/etc/letsencrypt/live/${PRIMARY_DOMAIN}/privkey.pem" "$SSL_KEY"
