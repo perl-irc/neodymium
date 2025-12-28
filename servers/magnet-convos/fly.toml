@@ -13,7 +13,8 @@ primary_region = 'ord'
   CONVOS_HOME = "/data"
   # Default connection via Flycast to leaf servers (load balanced)
   # Uses irc.perl.org alias mapped to flycast IP in entrypoint.sh
-  CONVOS_DEFAULT_CONNECTION = "irc://irc.perl.org:6667/%23perl-help"
+  # Port 16667 bypasses go-mmproxy (internal connections don't need PROXY protocol)
+  CONVOS_DEFAULT_CONNECTION = "irc://irc.perl.org:16667/%23perl-help"
   TAILSCALE_DOMAIN = "camel-kanyu.ts.net"
   # Branding
   CONVOS_ORGANIZATION_NAME = "MagNET - irc.perl.org"

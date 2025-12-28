@@ -37,19 +37,18 @@ class "opers" {
     sendq = 100 kbytes;
 };
 
-/* Listeners - client ports bound to loopback for go-mmproxy integration
- * go-mmproxy handles PROXY protocol from Fly.io edge and forwards here,
- * spoofing the original client IP address.
- * External 6667 → go-mmproxy → 127.0.0.1:16667
- * External 6697 → go-mmproxy → 127.0.0.1:16697
+/* Internal client ports - used by go-mmproxy AND flycast
+ * go-mmproxy handles PROXY protocol from Fly.io edge and forwards to 127.0.0.1:16667
+ * Flycast connections (Convos, Atheme) come directly to eth0:16667
+ * Binding to 0.0.0.0 covers both localhost and eth0
+ * External 6667 → go-mmproxy → 127.0.0.1:16667 (preserves client IP)
+ * Internal flycast:16667 → eth0:16667 (shows internal IP)
  */
 listen {
-    host = "127.0.0.1";
     port = 16667;
 };
 
 listen {
-    host = "127.0.0.1";
     port = 16697;
     sslport = 16697;
 };

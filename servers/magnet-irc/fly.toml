@@ -42,6 +42,8 @@ primary_region = "ord"
   auto_start_machines = true
   min_machines_running = 1
 
+# External client ports - go through go-mmproxy for PROXY protocol
+# These preserve real client IPs from Fly edge
 [[services]]
   internal_port = 6667
   protocol = "tcp"
@@ -49,11 +51,6 @@ primary_region = "ord"
   [[services.ports]]
     port = 6667
     handlers = ["proxy_proto"]
-
-  [[services.tcp_checks]]
-    grace_period = "30s"
-    interval = "15s"
-    timeout = "5s"
 
 [[services]]
   internal_port = 6697
@@ -63,11 +60,33 @@ primary_region = "ord"
     port = 6697
     handlers = ["proxy_proto"]
 
+# Internal ports - direct to Solanum, bypassing go-mmproxy
+# Used by flycast (Convos, Atheme, hub) and for health checks
+[[services]]
+  internal_port = 16667
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 16667
+
   [[services.tcp_checks]]
     grace_period = "30s"
     interval = "15s"
     timeout = "5s"
 
+[[services]]
+  internal_port = 16697
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 16697
+
+  [[services.tcp_checks]]
+    grace_period = "30s"
+    interval = "15s"
+    timeout = "5s"
+
+# Server-to-server links
 [[services]]
   internal_port = 7000
   protocol = "tcp"
