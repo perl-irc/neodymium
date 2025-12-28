@@ -136,3 +136,39 @@ loadmodule "memoserv/help";
 loadmodule "memoserv/list";
 loadmodule "memoserv/read";
 loadmodule "memoserv/send";
+
+/* SOPER module - allows managing services operators */
+loadmodule "operserv/soper";
+
+/* Operator class definitions */
+operclass "sra" {
+    privs {
+        special:ircop;
+        user:auspex;
+        user:admin;
+        user:sendpass;
+        user:vhost;
+        user:mark;
+        user:hold;
+        user:regnolimit;
+        general:auspex;
+        general:viewprivs;
+        general:flood;
+        general:metadata;
+        general:admin;
+        operserv:omode;
+        operserv:akill;
+        operserv:jupe;
+        operserv:noop;
+        operserv:global;
+        operserv:grant;
+    };
+};
+
+/* Bootstrap operator - initial SRA defined in config
+ * This account must be registered with NickServ first.
+ * Once running, use /msg OperServ SOPER to add more operators.
+ */
+operator "perigrin" {
+    operclass = "sra";
+};
