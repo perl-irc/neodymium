@@ -32,6 +32,7 @@ primary_region = "ord"
   ADMIN_NAME = "Chris Prather"
   ADMIN_DESCRIPTION = "Current MagNET Wrangler"
   ADMIN_EMAIL = "chris@prather.org"
+  SSL_DOMAINS = "magnet-irc.fly.dev,kowloon.social,irc.perl.org"
 
 # HTTP service for fly-replay to Convos
 # Requests to :80/:443 are replayed to magnet-convos app
@@ -44,10 +45,7 @@ primary_region = "ord"
 
 # External client ports - go through go-mmproxy for PROXY protocol
 # These preserve real client IPs from Fly edge
-# NOTE: internal_port must be different from 6667/6697 because:
-# - Fly.io routes to 0.0.0.0:<internal_port>
-# - go-mmproxy can't bind 0.0.0.0:6667 because Solanum uses 6667 on Tailscale interface
-# - Using 6668/6698 avoids conflict, allowing go-mmproxy to bind 0.0.0.0
+# NOTE: internal_port 6668/6698 avoid conflict with Solanum's Tailscale listener
 [[services]]
   internal_port = 6668
   protocol = "tcp"
