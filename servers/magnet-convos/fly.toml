@@ -41,3 +41,8 @@ primary_region = 'ord'
   method = "GET"
   timeout = "5s"
   path = "/"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
