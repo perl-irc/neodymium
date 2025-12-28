@@ -18,6 +18,9 @@ primary_region = 'ord'
   CONVOS_ORGANIZATION_NAME = "MagNET - irc.perl.org"
   CONVOS_ORGANIZATION_URL = "https://irc.perl.org"
   CONVOS_CONTACT = "mailto:chris@prather.org"
+  # Default theme for landing page and new users
+  CONVOS_DEFAULT_THEME = "magnet"
+  CONVOS_DEFAULT_SCHEME = "light"
 
 [mounts]
   source = "convos_data"
