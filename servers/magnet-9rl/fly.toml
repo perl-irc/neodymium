@@ -1,13 +1,5 @@
 # ABOUTME: Fly.io configuration for magnet-9rl (US Hub IRC server)
-# ABOUTME: Primary IRC server deployed in Chicago region with OpenSSL optimization
-#
-# IMPORTANT: This app requires a DEDICATED IPv4 address for TCP services to work.
-# Fly.io shared IPs only work for HTTP/HTTPS on ports 80/443.
-# Allocate with: flyctl ips allocate-v4 -a magnet-9rl --yes
-#
-# The proxy_proto handlers enable PROXY protocol for client IP preservation.
-# go-mmproxy running in the container unwraps these headers and spoofs the
-# original client IP when forwarding to Solanum.
+# ABOUTME: Hub server for S2S linking - no external client connections
 
 app = "magnet-9rl"
 primary_region = "ord"
@@ -39,33 +31,9 @@ primary_region = "ord"
   ADMIN_NAME = "Chris Prather"
   ADMIN_DESCRIPTION = "Current MagNET Wrangler"
   ADMIN_EMAIL = "chris@prather.org"
-  SSL_DOMAINS = "magnet-9rl.fly.dev,magnet-9rl.kowloon.social,magnet-9rl.irc.perl.org"
 
-
-# External client ports - go through go-mmproxy for PROXY protocol
-# These preserve real client IPs from Fly edge
-# NOTE: internal_port must be different from 6667/6697 because:
-# - Fly.io routes to 0.0.0.0:<internal_port>
-# - go-mmproxy can't bind 0.0.0.0:6667 because Solanum uses 6667 on Tailscale interface
-# - Using 6668/6698 avoids conflict, allowing go-mmproxy to bind 0.0.0.0
-[[services]]
-  internal_port = 6668
-  protocol = "tcp"
-
-  [[services.ports]]
-    port = 6667
-    handlers = ["proxy_proto"]
-
-[[services]]
-  internal_port = 6698
-  protocol = "tcp"
-
-  [[services.ports]]
-    port = 6697
-    handlers = ["proxy_proto"]
-
-# Internal ports - direct to Solanum, bypassing go-mmproxy
-# Used by flycast (leaves, Atheme) and for health checks
+# Internal ports - used by leaves and Atheme via flycast
+# Health checks use these ports
 [[services]]
   internal_port = 16667
   protocol = "tcp"

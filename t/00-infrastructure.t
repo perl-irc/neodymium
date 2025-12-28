@@ -9,11 +9,11 @@ use Test2::V0;
 # Current architecture apps
 my %EXPECTED_APPS = (
     'magnet-9rl' => {
-        description => 'US Hub IRC server',
+        description => 'US Hub IRC server (S2S only)',
         region      => 'ord',
         memory      => '1gb',
         cpus        => 1,
-        ports       => [6667, 6697, 7000, 16667, 16697],
+        ports       => [7000, 16667, 16697],  # No external client ports - hub only
     },
     'magnet-irc' => {
         description => 'Anycast leaf IRC servers',

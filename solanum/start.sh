@@ -222,12 +222,14 @@ fi
 
 # Generate self-signed certificate if Let's Encrypt didn't work or wasn't configured
 if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
-    echo "Generating self-signed SSL certificate..."
+    # Use Fly.io app domain for external clients (e.g., magnet-irc.fly.dev)
+    SSL_CN="${FLY_APP_NAME:-$SERVER_NAME}.fly.dev"
+    echo "Generating self-signed SSL certificate for ${SSL_CN}..."
     openssl req -x509 -nodes -newkey rsa:4096 \
         -keyout "$SSL_KEY" \
         -out "$SSL_CERT" \
         -days 365 \
-        -subj "/C=US/ST=State/L=City/O=MagNET IRC Network/CN=${SERVER_NAME}.${TAILSCALE_DOMAIN}"
+        -subj "/C=US/ST=State/L=City/O=MagNET IRC Network/CN=${SSL_CN}"
 fi
 
 # Generate DH parameters if they don't exist
