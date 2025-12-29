@@ -43,7 +43,6 @@ RUN apk update && apk add --no-cache \
     libtool \
     libltdl \
     mkpasswd \
-    certbot \
     iproute2 \
     nginx
 
@@ -77,11 +76,8 @@ COPY solanum/common.conf.template /opt/solanum/conf/common.conf.template
 COPY solanum/opers.conf.template /opt/solanum/conf/opers.conf.template
 COPY solanum/start.sh /app/start.sh
 COPY solanum/start-dynamic.sh /app/start-dynamic.sh
-COPY solanum/renew-cert.sh /opt/solanum/bin/renew-cert.sh
-COPY solanum/renew-hook.sh /opt/solanum/bin/renew-hook.sh
 COPY solanum/nginx.conf /etc/nginx/http.d/default.conf
-RUN chmod +x /app/start.sh /app/start-dynamic.sh /opt/solanum/bin/renew-cert.sh /opt/solanum/bin/renew-hook.sh
-RUN mkdir -p /var/www/.well-known/acme-challenge
+RUN chmod +x /app/start.sh /app/start-dynamic.sh
 
 # Copy server-specific config (path set via build arg)
 ARG SERVER_DIR=.
