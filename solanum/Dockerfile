@@ -74,6 +74,7 @@ RUN chown -R ircd:ircd /opt/solanum/
 # Copy configuration templates and startup scripts
 COPY solanum/common.conf.template /opt/solanum/conf/common.conf.template
 COPY solanum/opers.conf.template /opt/solanum/conf/opers.conf.template
+COPY solanum/ircd.motd /opt/solanum/etc/ircd.motd
 COPY solanum/start.sh /app/start.sh
 COPY solanum/start-dynamic.sh /app/start-dynamic.sh
 COPY solanum/nginx.conf /etc/nginx/http.d/default.conf
