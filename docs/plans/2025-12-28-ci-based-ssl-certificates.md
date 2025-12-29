@@ -233,24 +233,19 @@ jobs:
     name: Renew SSL Certificates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Deploy certbot machine
-        run: flyctl deploy --config servers/magnet-certbot/fly.toml -a magnet-certbot
+      - name: Trigger cert renewal
+        run: flyctl apps restart magnet-certbot
 
-      - name: Wait for cert renewal
-        run: |
-          # The deploy runs renew.sh which handles everything
-          # Wait for machine to complete and stop
-          sleep 120
+      - name: Wait for renewal to complete
+        run: sleep 120
 
       - name: Verify secrets updated
-        run: |
-          # Check that secrets were set (doesn't reveal values)
-          flyctl secrets list -a magnet-irc | grep SSL_CERT_PEM
-          # Note: rolling restart is triggered by renew.sh
+        run: flyctl secrets list -a magnet-irc | grep SSL_CERT_PEM
 ```
+
+No checkout or deploy needed - just restart the existing machine. The renewal logic is baked into the container.
 
 **Files to create:**
 - `.github/workflows/cert-renewal.yml`
