@@ -16,13 +16,21 @@ jobs:
     name: Renew SSL Certificates
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Trigger cert renewal
-        run: flyctl apps restart magnet-certbot
+      - name: Set token on certbot machine
+        run: flyctl secrets set FLY_API_TOKEN="$FLY_API_TOKEN" -a magnet-certbot
+
+      - name: Deploy and run certbot
+        run: flyctl deploy --config servers/magnet-certbot/fly.toml -a magnet-certbot
 
       - name: Wait for renewal to complete
         run: sleep 180
 
       - name: Check certbot logs
         run: flyctl logs -a magnet-certbot --no-tail | tail -50
+
+      - name: Remove token from certbot machine
+        if: always()
+        run: flyctl secrets unset FLY_API_TOKEN -a magnet-certbot || true
