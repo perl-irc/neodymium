@@ -1,0 +1,19 @@
+# ABOUTME: Fly.io configuration for magnet-certbot (SSL certificate management)
+# ABOUTME: Handles Let's Encrypt cert acquisition and pushes to magnet-irc machines
+
+app = "magnet-certbot"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 80
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[env]
+  SSL_DOMAINS = "kowloon.social,magnet-irc.fly.dev"
+  ADMIN_EMAIL = "chris@prather.org"
+  TARGET_APP = "magnet-irc"

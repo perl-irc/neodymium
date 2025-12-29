@@ -86,13 +86,9 @@ fi
 
 echo "go-mmproxy started (PIDs: $MMPROXY_6668_PID, $MMPROXY_6698_PID)"
 
-# Start nginx for ACME challenges and fly-replay to Convos
-# Serves /.well-known/acme-challenge/ for Let's Encrypt
-# Returns fly-replay header for everything else to route to magnet-convos
-echo "Starting nginx for ACME challenges and fly-replay..."
-mkdir -p /var/www/.well-known/acme-challenge
-# Make webroot world-readable so nginx (running as 'nginx' user) can serve files
-chmod -R 755 /var/www
+# Start nginx for fly-replay routing
+# Routes ACME challenges to magnet-certbot, everything else to magnet-convos
+echo "Starting nginx for fly-replay routing..."
 nginx
 echo "nginx started"
 
@@ -152,63 +148,15 @@ if [ -z "${SERVER_SID}" ]; then
 fi
 
 # SSL certificate configuration
+# Real Let's Encrypt certs are pushed by magnet-certbot via SSH
+# Self-signed certs are generated on startup as fallback
 SSL_CERT="/opt/solanum/etc/ssl.pem"
 SSL_KEY="/opt/solanum/etc/ssl.key"
 SSL_DH="/opt/solanum/etc/dh.pem"
 
-# Check if we should use Let's Encrypt (requires domains and email)
-if [ -n "${SSL_DOMAINS}" ] && [ -n "${ADMIN_EMAIL}" ]; then
-    echo "Setting up Let's Encrypt certificate for domains: ${SSL_DOMAINS}..."
-
-    # Create webroot directory for ACME challenge
-    mkdir -p /var/www/.well-known/acme-challenge
-
-    # Build domain arguments for certbot
-    DOMAIN_ARGS=""
-    PRIMARY_DOMAIN=""
-    for domain in $(echo "${SSL_DOMAINS}" | tr ',' ' '); do
-        domain=$(echo "$domain" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')  # trim whitespace
-        if [ -z "$PRIMARY_DOMAIN" ]; then
-            PRIMARY_DOMAIN="$domain"
-        fi
-        DOMAIN_ARGS="$DOMAIN_ARGS --domains $domain"
-    done
-
-    echo "Primary domain: $PRIMARY_DOMAIN"
-    echo "All domains: $DOMAIN_ARGS"
-
-    # Try to get/renew Let's Encrypt certificate using webroot mode
-    # nginx serves /.well-known/acme-challenge/ from /var/www
-    # Use RSA keys for compatibility with Solanum's SSL implementation
-    if certbot certonly \
-        --webroot \
-        --webroot-path /var/www \
-        --non-interactive \
-        --agree-tos \
-        --email "${ADMIN_EMAIL}" \
-        --key-type rsa \
-        --rsa-key-size 4096 \
-        $DOMAIN_ARGS; then
-
-        echo "Let's Encrypt certificate obtained successfully"
-
-        # Fix permissions so ircd user can read certificates through symlinks
-        # Let's Encrypt creates directories with 700 permissions by default
-        chmod 755 /etc/letsencrypt/archive /etc/letsencrypt/live
-        chmod 755 "/etc/letsencrypt/archive/${PRIMARY_DOMAIN}"
-        chmod 755 "/etc/letsencrypt/live/${PRIMARY_DOMAIN}"
-
-        # Create symlinks to Let's Encrypt certificates (using primary domain)
-        ln -sf "/etc/letsencrypt/live/${PRIMARY_DOMAIN}/fullchain.pem" "$SSL_CERT"
-        ln -sf "/etc/letsencrypt/live/${PRIMARY_DOMAIN}/privkey.pem" "$SSL_KEY"
-    else
-        echo "Let's Encrypt certificate request failed, falling back to self-signed"
-    fi
-fi
-
-# Generate self-signed certificate if Let's Encrypt didn't work or wasn't configured
+# Generate self-signed certificate if none exists
+# magnet-certbot will push real certs and SIGHUP to reload
 if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
-    # Use Fly.io app domain for external clients (e.g., magnet-irc.fly.dev)
     SSL_CN="${FLY_APP_NAME:-$SERVER_NAME}.fly.dev"
     echo "Generating self-signed SSL certificate for ${SSL_CN}..."
     openssl req -x509 -nodes -newkey rsa:4096 \
@@ -229,18 +177,6 @@ chmod 600 "$SSL_KEY" "$SSL_CERT" "$SSL_DH" 2>/dev/null
 chown ircd:ircd "$SSL_KEY" "$SSL_CERT" "$SSL_DH" 2>/dev/null
 
 echo "SSL configuration complete"
-
-# Set up cron job for certificate renewal if Let's Encrypt is configured
-if [ -n "${SSL_DOMAINS}" ] && [ -n "${ADMIN_EMAIL}" ]; then
-    echo "Setting up certificate renewal cron job..."
-    # Export variables for the cron job
-    echo "SSL_DOMAINS=${SSL_DOMAINS}" >> /etc/environment
-    echo "ADMIN_EMAIL=${ADMIN_EMAIL}" >> /etc/environment
-    echo "0 2 * * * /opt/solanum/bin/renew-cert.sh" > /tmp/certbot-cron
-    crontab -u root /tmp/certbot-cron
-    crond -b  # Start cron daemon in background
-    echo "Certificate renewal cron job configured"
-fi
 
 # Process server-specific configuration and concatenate with common config
 echo "Processing server-specific configuration..."

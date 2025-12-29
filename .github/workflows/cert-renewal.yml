@@ -1,0 +1,28 @@
+# ABOUTME: GitHub Actions workflow for automated SSL certificate renewal
+# ABOUTME: Triggers magnet-certbot to get Let's Encrypt certs and push to magnet-irc
+
+name: SSL Certificate Renewal
+
+on:
+  schedule:
+    - cron: '0 0 1 */2 *'  # 1st of every 2nd month at midnight UTC
+  workflow_dispatch:        # Manual trigger
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  renew:
+    name: Renew SSL Certificates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Trigger cert renewal
+        run: flyctl apps restart magnet-certbot
+
+      - name: Wait for renewal to complete
+        run: sleep 180
+
+      - name: Check certbot logs
+        run: flyctl logs -a magnet-certbot --no-tail | tail -50
