@@ -34,29 +34,22 @@ Use a separate Fly app for certificate management that receives ACME challenges 
 ┌─────────────────────────────────────────────────────────────┐
 │                magnet-certbot (single machine)               │
 │                                                              │
-│  - Auto-starts when request arrives                         │
+│  - Auto-starts when triggered by GH Actions                 │
 │  - Certbot serves challenge directly                        │
 │  - Auto-stops when idle                                     │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              │ After validation, store cert
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Fly.io Secrets                           │
-│                                                              │
-│  SSL_CERT_PEM = "-----BEGIN CERTIFICATE-----..."            │
-│  SSL_KEY_PEM  = "-----BEGIN PRIVATE KEY-----..."            │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              │ Redeploy to pick up new certs
+                              │ After validation, SSH to each machine
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                magnet-irc (multiple machines)                │
 │                                                              │
-│  start.sh reads SSL_CERT_PEM and SSL_KEY_PEM from env       │
-│  Writes to /opt/solanum/etc/ssl.pem and ssl.key             │
+│  Certs written directly via flyctl ssh                      │
+│  SIGHUP sent to Solanum to reload (zero downtime)           │
+│                                                              │
+│  New machines: start with self-signed, get real cert on     │
+│  next scheduled renewal                                      │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -69,16 +62,18 @@ Use a separate Fly app for certificate management that receives ACME challenges 
 4. **Request hits magnet-irc**: nginx returns `fly-replay: app=magnet-certbot`
 5. **Fly replays to certbot machine**: magnet-certbot serves challenge
 6. **Cert issued**: Certbot receives certificate
-7. **Store as secrets**: `flyctl secrets set` stores cert for new machine startups
-8. **Push to running machines**: SSH to each machine, write cert files
-9. **Rehash Solanum**: Send SIGHUP to reload certs (zero downtime)
-10. **Certbot machine stops**: Auto-stops after idle timeout
+7. **Push to running machines**: SSH to each machine, write cert files
+8. **Rehash Solanum**: Send SIGHUP to reload certs (zero downtime)
+9. **Certbot machine stops**: Auto-stops after idle timeout
+
+New machines start with self-signed certs and get real certs on next scheduled renewal.
 
 ### Benefits
 
 - **Zero downtime**: Certs pushed via SSH, Solanum reloads on SIGHUP (no dropped connections)
-- **No Tigris/S3 needed**: Challenge served directly by certbot machine
+- **No secrets/storage needed**: Certs pushed directly via SSH, self-signed fallback for new machines
 - **No scaling**: magnet-irc stays at full capacity throughout
+- **Instant startup**: New machines start immediately with self-signed, no blocking on cert acquisition
 - **Cost efficient**: Certbot machine only runs during renewal (~minutes per 60 days)
 
 ## Implementation Plan
@@ -152,15 +147,8 @@ certbot certonly \
 # Get the primary domain for cert path
 PRIMARY_DOMAIN=$(echo "${SSL_DOMAINS}" | cut -d',' -f1)
 
-# Store certs as secrets on magnet-irc (for new machines on startup)
-flyctl secrets set -a magnet-irc \
-    SSL_CERT_PEM="$(cat /etc/letsencrypt/live/${PRIMARY_DOMAIN}/fullchain.pem)" \
-    SSL_KEY_PEM="$(cat /etc/letsencrypt/live/${PRIMARY_DOMAIN}/privkey.pem)"
-
-echo "Certificates stored as secrets on magnet-irc"
-
-# Update running machines without restart (zero downtime)
-echo "Updating certificates on running machines..."
+# Push certs to all running magnet-irc machines (zero downtime)
+echo "Pushing certificates to running machines..."
 CERT_FILE="/etc/letsencrypt/live/${PRIMARY_DOMAIN}/fullchain.pem"
 KEY_FILE="/etc/letsencrypt/live/${PRIMARY_DOMAIN}/privkey.pem"
 
@@ -208,9 +196,9 @@ location / {
 **Files to modify:**
 - `solanum/nginx.conf`
 
-### Phase 3: Update magnet-irc start.sh for secrets-based certs
+### Phase 3: Simplify magnet-irc start.sh
 
-Modify `solanum/start.sh` to read certs from secrets:
+Remove certbot logic from `solanum/start.sh`. Just use self-signed certs on startup:
 
 ```sh
 # SSL certificate configuration
@@ -218,20 +206,22 @@ SSL_CERT="/opt/solanum/etc/ssl.pem"
 SSL_KEY="/opt/solanum/etc/ssl.key"
 SSL_DH="/opt/solanum/etc/dh.pem"
 
-# Check if certs are provided via secrets (preferred)
-if [ -n "${SSL_CERT_PEM}" ] && [ -n "${SSL_KEY_PEM}" ]; then
-    echo "Using SSL certificates from Fly secrets..."
-    echo "${SSL_CERT_PEM}" > "$SSL_CERT"
-    echo "${SSL_KEY_PEM}" > "$SSL_KEY"
-else
-    echo "No SSL secrets found, falling back to self-signed certificate..."
-    # Generate self-signed cert (existing logic)
-    ...
+# Generate self-signed certificate if none exists
+# Real certs are pushed by magnet-certbot via SSH
+if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
+    echo "Generating self-signed SSL certificate..."
+    openssl req -x509 -nodes -newkey rsa:4096 \
+        -keyout "$SSL_KEY" \
+        -out "$SSL_CERT" \
+        -days 365 \
+        -subj "/CN=${FLY_APP_NAME:-magnet-irc}.fly.dev"
 fi
 ```
 
+Real Let's Encrypt certs are pushed by magnet-certbot after it runs. New machines start with self-signed and get real certs on next scheduled renewal.
+
 **Files to modify:**
-- `solanum/start.sh` - Add secrets-based cert loading, remove certbot logic
+- `solanum/start.sh` - Remove certbot logic, keep self-signed fallback
 
 ### Phase 4: Create renewal workflow
 
