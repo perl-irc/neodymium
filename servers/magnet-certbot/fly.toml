@@ -6,7 +6,6 @@ primary_region = "ord"
 
 [build]
   dockerfile = "Dockerfile"
-  context = "servers/magnet-certbot"
 
 [http_service]
   internal_port = 80
