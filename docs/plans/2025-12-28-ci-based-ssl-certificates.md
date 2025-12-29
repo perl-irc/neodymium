@@ -63,21 +63,21 @@ Use a separate Fly app for certificate management that receives ACME challenges 
 
 ### How It Works
 
-1. **Renewal triggered**: GitHub Actions (scheduled or manual) starts certbot on magnet-certbot
+1. **Renewal triggered**: GitHub Actions (scheduled or manual) restarts magnet-certbot
 2. **Certbot runs**: Creates challenge, starts HTTP server waiting for validation
 3. **Let's Encrypt validates**: Sends request to `kowloon.social/.well-known/acme-challenge/{token}`
 4. **Request hits magnet-irc**: nginx returns `fly-replay: app=magnet-certbot`
-5. **Fly replays to certbot machine**: magnet-certbot auto-starts if stopped, serves challenge
+5. **Fly replays to certbot machine**: magnet-certbot serves challenge
 6. **Cert issued**: Certbot receives certificate
-7. **Store as secrets**: Certbot machine uses `flyctl secrets set` to store cert on magnet-irc
-8. **Redeploy magnet-irc**: Rolling restart picks up new certs from secrets
-9. **Certbot machine stops**: Auto-stops after idle timeout
+7. **Store as secrets**: `flyctl secrets set` stores cert for new machine startups
+8. **Push to running machines**: SSH to each machine, write cert files
+9. **Rehash Solanum**: Send SIGHUP to reload certs (zero downtime)
+10. **Certbot machine stops**: Auto-stops after idle timeout
 
 ### Benefits
 
+- **Zero downtime**: Certs pushed via SSH, Solanum reloads on SIGHUP (no dropped connections)
 - **No Tigris/S3 needed**: Challenge served directly by certbot machine
-- **No cron needed**: Renewal triggered by GitHub Actions schedule
-- **No SSH coordination**: No need to write files to multiple machines
 - **No scaling**: magnet-irc stays at full capacity throughout
 - **Cost efficient**: Certbot machine only runs during renewal (~minutes per 60 days)
 
@@ -115,9 +115,9 @@ primary_region = "ord"
 # servers/magnet-certbot/Dockerfile
 FROM alpine:latest
 
-RUN apk add --no-cache certbot curl bash
+RUN apk add --no-cache certbot curl bash jq
 
-# Install flyctl for secrets management
+# Install flyctl for secrets and SSH
 RUN curl -L https://fly.io/install.sh | sh
 ENV PATH="/root/.fly/bin:$PATH"
 
@@ -152,18 +152,39 @@ certbot certonly \
 # Get the primary domain for cert path
 PRIMARY_DOMAIN=$(echo "${SSL_DOMAINS}" | cut -d',' -f1)
 
-# Store certs as secrets on magnet-irc
+# Store certs as secrets on magnet-irc (for new machines on startup)
 flyctl secrets set -a magnet-irc \
     SSL_CERT_PEM="$(cat /etc/letsencrypt/live/${PRIMARY_DOMAIN}/fullchain.pem)" \
     SSL_KEY_PEM="$(cat /etc/letsencrypt/live/${PRIMARY_DOMAIN}/privkey.pem)"
 
 echo "Certificates stored as secrets on magnet-irc"
 
-# Trigger rolling restart to pick up new certs
-echo "Triggering rolling restart of magnet-irc..."
-flyctl apps restart magnet-irc --strategy rolling
+# Update running machines without restart (zero downtime)
+echo "Updating certificates on running machines..."
+CERT_FILE="/etc/letsencrypt/live/${PRIMARY_DOMAIN}/fullchain.pem"
+KEY_FILE="/etc/letsencrypt/live/${PRIMARY_DOMAIN}/privkey.pem"
 
-echo "Certificate renewal complete"
+for machine in $(flyctl machines list -a magnet-irc --json | jq -r '.[].id'); do
+    echo "Updating machine ${machine}..."
+
+    # Write cert files directly
+    cat "$CERT_FILE" | flyctl ssh console -a magnet-irc -s "${machine}" \
+        -C "cat > /opt/solanum/etc/ssl.pem"
+    cat "$KEY_FILE" | flyctl ssh console -a magnet-irc -s "${machine}" \
+        -C "cat > /opt/solanum/etc/ssl.key"
+
+    # Fix permissions
+    flyctl ssh console -a magnet-irc -s "${machine}" \
+        -C "chmod 600 /opt/solanum/etc/ssl.pem /opt/solanum/etc/ssl.key && chown ircd:ircd /opt/solanum/etc/ssl.pem /opt/solanum/etc/ssl.key"
+
+    # Rehash Solanum to reload certs
+    flyctl ssh console -a magnet-irc -s "${machine}" \
+        -C "pkill -HUP solanum"
+
+    echo "Machine ${machine} updated"
+done
+
+echo "Certificate renewal complete - zero downtime"
 ```
 
 ### Phase 2: Update magnet-irc nginx for fly-replay
