@@ -32,8 +32,8 @@ primary_region = "ord"
   ADMIN_NAME = "Chris Prather"
   ADMIN_DESCRIPTION = "Current MagNET Wrangler"
   ADMIN_EMAIL = "chris@prather.org"
-  # Start with just fly.dev domain, add others after DNS is configured
-  SSL_DOMAINS = "magnet-irc.fly.dev"
+  # Domains for Let's Encrypt certificate (DNS must point to this app)
+  SSL_DOMAINS = "kowloon.social,magnet-irc.fly.dev"
 
 # HTTP service for ACME challenges and fly-replay to Convos
 # force_https disabled to allow Let's Encrypt HTTP-01 validation
