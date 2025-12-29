@@ -6,9 +6,9 @@ The current Let's Encrypt setup runs certbot at container startup using HTTP-01 
 
 1. **ACME challenge routing**: HTTP-01 validation requires serving a challenge file from the domain's IP. With multiple machines behind anycast, requests may hit different machines than the one that created the challenge file.
 
-2. **Manual intervention required**: Currently must scale to 1 machine before cert renewal, then scale back up.
+2. **90-day renewal cycle**: Let's Encrypt certs expire every 90 days.
 
-3. **90-day renewal cycle**: Let's Encrypt certs expire every 90 days, making manual scaling unsustainable.
+**Constraint**: Scaling to 1 machine is not acceptable - this defeats the purpose of multi-machine redundancy.
 
 ## Current State
 
@@ -16,233 +16,285 @@ The current Let's Encrypt setup runs certbot at container startup using HTTP-01 
 - Certs stored in `/etc/letsencrypt/` (ephemeral container filesystem)
 - Symlinks created at `/opt/solanum/etc/ssl.pem` and `ssl.key`
 - Works with 1 machine; breaks with multiple machines during ACME validation
-- nginx on port 8080 serves `/.well-known/acme-challenge/`
+- nginx on port 8080 serves `/.well-known/acme-challenge/` from local `/var/www/`
 
-## Proposed Solution
+## Proposed Solution: Shared Storage with Tigris
 
-Decouple certificate acquisition from the IRC infrastructure:
+Use Fly.io's Tigris (S3-compatible object storage) to share ACME challenges and certificates across all machines.
 
-1. **Ephemeral certbot machine**: GitHub Actions spins up a temporary Fly machine dedicated to running certbot
-2. **Secrets-based cert storage**: Certs stored as Fly secrets, accessible to all machines
-3. **Scheduled renewal**: GitHub Actions cron triggers renewal every 60 days
-4. **No certbot in IRC containers**: magnet-irc reads certs from secrets, never runs certbot
+### How It Works
+
+1. **Shared ACME challenges**: All machines serve challenges from Tigris, so any machine can respond to Let's Encrypt validation
+2. **Shared certificate storage**: Certs stored in Tigris, all machines download on startup
+3. **Single certbot coordinator**: Only one machine runs certbot (using distributed locking or leader election)
+4. **Scheduled renewal**: GitHub Actions triggers renewal; any machine can handle it
 
 ### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    GitHub Actions                            │
+│                         Tigris (S3)                          │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  cert-renewal.yml (scheduled every 60 days)         │    │
+│  │  magnet-certs bucket                                 │    │
 │  │                                                      │    │
-│  │  1. Create temp Fly machine (magnet-certbot)        │    │
-│  │  2. Run certbot standalone                          │    │
-│  │  3. Extract certs via fly sftp                      │    │
-│  │  4. Store as Fly secrets on magnet-irc              │    │
-│  │  5. Destroy temp machine                            │    │
-│  │  6. Rolling restart magnet-irc                      │    │
+│  │  /acme-challenge/         (challenge tokens)        │    │
+│  │  /certs/ssl.pem           (certificate chain)       │    │
+│  │  /certs/ssl.key           (private key)             │    │
+│  │  /certs/lock              (renewal lock file)       │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Fly.io Secrets                           │
-│  SSL_CERT_PEM = "-----BEGIN CERTIFICATE-----..."            │
-│  SSL_KEY_PEM  = "-----BEGIN PRIVATE KEY-----..."            │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+           ▲                              │
+           │ upload challenges            │ download certs
+           │ upload certs                 ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                magnet-irc (multiple machines)                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
 │  │   ord (1)    │  │   ord (2)    │  │   ams (1)    │       │
 │  │              │  │              │  │              │       │
+│  │ nginx:       │  │ nginx:       │  │ nginx:       │       │
+│  │ - Proxy      │  │ - Proxy      │  │ - Proxy      │       │
+│  │   challenges │  │   challenges │  │   challenges │       │
+│  │   to Tigris  │  │   to Tigris  │  │   to Tigris  │       │
+│  │              │  │              │  │              │       │
 │  │ start.sh:    │  │ start.sh:    │  │ start.sh:    │       │
-│  │ - Read from  │  │ - Read from  │  │ - Read from  │       │
-│  │   secrets    │  │   secrets    │  │   secrets    │       │
-│  │ - Write to   │  │ - Write to   │  │ - Write to   │       │
-│  │   ssl.pem    │  │   ssl.pem    │  │   ssl.pem    │       │
-│  │ - No certbot │  │ - No certbot │  │ - No certbot │       │
+│  │ - Download   │  │ - Download   │  │ - Download   │       │
+│  │   certs from │  │   certs from │  │   certs from │       │
+│  │   Tigris     │  │   Tigris     │  │   Tigris     │       │
 │  └──────────────┘  └──────────────┘  └──────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+           ▲
+           │ ACME validation request
+           │ (hits any machine)
+┌─────────────────────────────────────────────────────────────┐
+│                    Let's Encrypt                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Temporary Certbot Machine
+### ACME Challenge Flow
 
-A minimal Fly app (`magnet-certbot`) used only for cert acquisition:
-
-- Single machine, single region
-- Runs certbot in standalone mode (serves its own HTTP on port 80)
-- DNS for kowloon.social/magnet-irc.fly.dev points here temporarily OR
-- Uses the existing magnet-irc app's HTTP service (port 8080) with webroot mode
-- Destroyed after cert acquisition
-
-**Option A: Standalone mode (simpler)**
-- Temp machine binds port 80
-- Requires DNS/Fly routing to send ACME traffic to this machine
-- Complex because kowloon.social points to magnet-irc
-
-**Option B: Use existing infrastructure (recommended)**
-- Scale magnet-irc to 1 machine temporarily in CI
-- Run certbot via `fly ssh console`
-- Extract certs, store as secrets
-- Scale back up
-
-Wait - Option B still requires scaling to 1. Let me reconsider.
-
-**Option C: Dedicated certbot app with its own IP**
-- Create `magnet-certbot` Fly app with dedicated IPv4
-- Add DNS record: `_acme.kowloon.social` -> certbot app IP (not needed for HTTP-01)
-- Actually, HTTP-01 validates against the actual domain, not a subdomain
-
-**Option D: Certbot in CI with DNS-01 (if DNS access available later)**
-- When permanent domain with DNS API access is available
-- Cleanest solution, no HTTP routing issues
-
-### Recommended Approach: Option B with Automation
-
-Since scaling to 1 machine is currently necessary anyway, automate it fully:
-
-1. CI workflow handles the entire process automatically
-2. Scale down, get cert, store secret, scale up
-3. Human never needs to intervene
-4. Downtime is minimal (seconds during scale operations)
-
-This is pragmatic for a temporary domain. When a permanent domain with DNS API access is available, switch to DNS-01.
+1. Certbot runs on one machine, creates challenge token
+2. Certbot's auth hook uploads token to `s3://magnet-certs/acme-challenge/{token}`
+3. Let's Encrypt sends HTTP request to `http://kowloon.social/.well-known/acme-challenge/{token}`
+4. Request hits any machine; nginx proxies to Tigris
+5. Tigris returns challenge token
+6. Let's Encrypt validates, issues certificate
+7. Certbot's deploy hook uploads cert to Tigris
+8. All machines download new cert on next startup or via signal
 
 ## Implementation Plan
 
-### Phase 1: Secrets-based cert loading in start.sh
+### Phase 1: Set up Tigris bucket
 
-Modify `solanum/start.sh` to check for cert secrets before running certbot:
+Create a Tigris bucket for cert storage:
 
 ```sh
-# Check if certs are provided via secrets
-if [ -n "${SSL_CERT_PEM}" ] && [ -n "${SSL_KEY_PEM}" ]; then
-    echo "Using SSL certificates from secrets..."
-    echo "${SSL_CERT_PEM}" > "$SSL_CERT"
-    echo "${SSL_KEY_PEM}" > "$SSL_KEY"
+flyctl storage create magnet-certs -a magnet-irc
+```
+
+This provides:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_ENDPOINT_URL_S3`
+- `BUCKET_NAME`
+
+Store these as Fly secrets.
+
+### Phase 2: nginx proxy to Tigris for ACME challenges
+
+Modify `solanum/nginx.conf` to proxy ACME challenges to Tigris:
+
+```nginx
+# ACME challenge proxy to Tigris
+location /.well-known/acme-challenge/ {
+    # Rewrite to Tigris bucket path
+    proxy_pass ${TIGRIS_ENDPOINT}/magnet-certs/acme-challenge/;
+
+    # Or if Tigris requires auth, use a local sync approach instead
+}
+```
+
+**Note**: If Tigris requires authentication for reads, we'll need an alternative:
+- Use a sidecar process that syncs from Tigris to local `/var/www/`
+- Or make the bucket publicly readable (less secure but simpler)
+
+**Files to modify:**
+- `solanum/nginx.conf` - Add Tigris proxy or sync
+- `solanum/Dockerfile` - Add AWS CLI or s3cmd for Tigris access
+
+### Phase 3: Certbot hooks for Tigris
+
+Create certbot hooks that upload challenges and certs to Tigris:
+
+```sh
+# /opt/solanum/bin/certbot-auth-hook.sh
+#!/bin/sh
+# Upload ACME challenge to Tigris
+aws s3 cp - "s3://magnet-certs/acme-challenge/${CERTBOT_TOKEN}" \
+    --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
+    <<< "${CERTBOT_VALIDATION}"
+```
+
+```sh
+# /opt/solanum/bin/certbot-cleanup-hook.sh
+#!/bin/sh
+# Remove ACME challenge from Tigris
+aws s3 rm "s3://magnet-certs/acme-challenge/${CERTBOT_TOKEN}" \
+    --endpoint-url "${AWS_ENDPOINT_URL_S3}"
+```
+
+```sh
+# /opt/solanum/bin/certbot-deploy-hook.sh
+#!/bin/sh
+# Upload renewed certs to Tigris
+aws s3 cp "${RENEWED_LINEAGE}/fullchain.pem" "s3://magnet-certs/certs/ssl.pem" \
+    --endpoint-url "${AWS_ENDPOINT_URL_S3}"
+aws s3 cp "${RENEWED_LINEAGE}/privkey.pem" "s3://magnet-certs/certs/ssl.key" \
+    --endpoint-url "${AWS_ENDPOINT_URL_S3}"
+```
+
+**Files to create:**
+- `solanum/certbot-auth-hook.sh`
+- `solanum/certbot-cleanup-hook.sh`
+- `solanum/certbot-deploy-hook.sh`
+
+### Phase 4: Modify start.sh for Tigris-based certs
+
+Update `solanum/start.sh`:
+
+```sh
+# Try to download existing certs from Tigris
+echo "Checking Tigris for existing certificates..."
+if aws s3 cp "s3://magnet-certs/certs/ssl.pem" "$SSL_CERT" \
+    --endpoint-url "${AWS_ENDPOINT_URL_S3}" 2>/dev/null && \
+   aws s3 cp "s3://magnet-certs/certs/ssl.key" "$SSL_KEY" \
+    --endpoint-url "${AWS_ENDPOINT_URL_S3}" 2>/dev/null; then
+
+    echo "Downloaded certificates from Tigris"
+
+    # Check if cert needs renewal (within 30 days of expiry)
+    if openssl x509 -checkend 2592000 -noout -in "$SSL_CERT" 2>/dev/null; then
+        echo "Certificate is valid for more than 30 days"
+    else
+        echo "Certificate expires within 30 days, attempting renewal..."
+        # Try to acquire lock and renew
+        run_certbot_with_lock
+    fi
 else
-    # Existing certbot logic
-    ...
+    echo "No certificates in Tigris, running certbot..."
+    run_certbot_with_lock
 fi
 ```
 
 **Files to modify:**
-- `solanum/start.sh` - Add secrets-based cert loading
+- `solanum/start.sh` - Tigris-based cert management
 
-### Phase 2: Manual cert extraction and secret storage
+### Phase 5: Distributed locking for certbot
 
-Create a script to extract certs from a running machine and store as secrets:
+To prevent multiple machines from running certbot simultaneously:
 
 ```sh
-#!/bin/sh
-# scripts/extract-and-store-certs.sh
+run_certbot_with_lock() {
+    LOCK_FILE="s3://magnet-certs/certs/lock"
+    LOCK_ID=$(hostname)-$$
 
-# Extract certs from running machine
-flyctl ssh console -a magnet-irc -C "cat /opt/solanum/etc/ssl.pem" > /tmp/ssl.pem
-flyctl ssh console -a magnet-irc -C "cat /opt/solanum/etc/ssl.key" > /tmp/ssl.key
+    # Try to acquire lock (upload lock file)
+    if aws s3 cp - "$LOCK_FILE" \
+        --endpoint-url "${AWS_ENDPOINT_URL_S3}" \
+        <<< "$LOCK_ID" 2>/dev/null; then
 
-# Store as secrets
-flyctl secrets set -a magnet-irc \
-    SSL_CERT_PEM="$(cat /tmp/ssl.pem)" \
-    SSL_KEY_PEM="$(cat /tmp/ssl.key)"
+        # Verify we got the lock
+        sleep 2
+        CURRENT_LOCK=$(aws s3 cp "$LOCK_FILE" - --endpoint-url "${AWS_ENDPOINT_URL_S3}" 2>/dev/null)
 
-# Cleanup
-rm /tmp/ssl.pem /tmp/ssl.key
+        if [ "$CURRENT_LOCK" = "$LOCK_ID" ]; then
+            echo "Acquired certbot lock"
+
+            certbot certonly \
+                --webroot \
+                --webroot-path /var/www \
+                --manual-auth-hook /opt/solanum/bin/certbot-auth-hook.sh \
+                --manual-cleanup-hook /opt/solanum/bin/certbot-cleanup-hook.sh \
+                --deploy-hook /opt/solanum/bin/certbot-deploy-hook.sh \
+                ...
+
+            # Release lock
+            aws s3 rm "$LOCK_FILE" --endpoint-url "${AWS_ENDPOINT_URL_S3}"
+        else
+            echo "Lost lock race, another machine is handling renewal"
+        fi
+    else
+        echo "Could not acquire lock, another machine is handling renewal"
+    fi
+}
 ```
 
-**Files to create:**
-- `scripts/extract-and-store-certs.sh`
+### Phase 6: Scheduled renewal workflow
 
-### Phase 3: Automated renewal workflow
-
-Create GitHub Actions workflow for scheduled renewal:
+GitHub Actions workflow triggers renewal check:
 
 ```yaml
 # .github/workflows/cert-renewal.yml
-name: SSL Certificate Renewal
+name: SSL Certificate Renewal Check
 
 on:
   schedule:
     - cron: '0 0 1 */2 *'  # 1st of every 2nd month
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
 
 jobs:
-  renew:
+  trigger-renewal:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Scale to 1 machine
-        run: flyctl scale count 1 -a magnet-irc --yes
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: Wait for scale down
-        run: sleep 30
-
-      - name: Trigger cert renewal
+      - name: Trigger renewal check on one machine
         run: |
-          flyctl ssh console -a magnet-irc -C "certbot renew --force-renewal"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: Extract and store certs
-        run: |
-          flyctl ssh console -a magnet-irc -C "cat /opt/solanum/etc/ssl.pem" > /tmp/ssl.pem
-          flyctl ssh console -a magnet-irc -C "cat /opt/solanum/etc/ssl.key" > /tmp/ssl.key
-          flyctl secrets set -a magnet-irc \
-            SSL_CERT_PEM="$(cat /tmp/ssl.pem)" \
-            SSL_KEY_PEM="$(cat /tmp/ssl.key)"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: Scale back up
-        run: flyctl scale count 2 -a magnet-irc --yes
+          # SSH to any machine and trigger renewal check
+          flyctl ssh console -a magnet-irc -C "/opt/solanum/bin/check-cert-renewal.sh"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 ```
 
 **Files to create:**
 - `.github/workflows/cert-renewal.yml`
+- `solanum/check-cert-renewal.sh`
 
-### Phase 4: Initial secret population
+## Alternative: Simpler Tigris Approach
 
-One-time manual step to populate secrets from current certs:
+If the nginx-to-Tigris proxy is complex, a simpler approach:
 
-```sh
-# Run locally or in CI after current deploy
-./scripts/extract-and-store-certs.sh
-```
+1. **Make Tigris bucket publicly readable** for the `acme-challenge/` prefix only
+2. **Use a background sync** process that polls Tigris every few seconds during cert acquisition
+3. **Store certs as Fly secrets** instead of Tigris (simpler, no S3 access needed at runtime)
 
-### Phase 5: Remove certbot from startup (optional)
+### Hybrid Approach (Recommended)
 
-Once secrets are reliable, optionally remove certbot logic from `start.sh` entirely. This simplifies the container but removes the fallback.
+- **ACME challenges**: Upload to publicly-readable Tigris location
+- **Certificates**: Store as Fly secrets (simpler runtime, no S3 client needed)
+- **Renewal**: One machine runs certbot, uploads to Tigris for challenge, then updates Fly secrets via API
 
-**Recommendation**: Keep certbot as fallback for now. If secrets are missing, certbot runs. This provides resilience.
+This gives:
+- Simple cert distribution (secrets work everywhere)
+- Shared challenge files (Tigris handles multi-machine routing)
+- No local filesystem coordination needed
+
+## Tigris Costs
+
+- Free tier: 5GB storage, 10GB egress/month
+- ACME challenges and certs are tiny (< 100KB total)
+- Effectively free for this use case
 
 ## Rollback Plan
 
-If issues occur:
+1. **Tigris issues**: Fall back to Fly secrets for cert storage
+2. **Renewal fails**: Manual certbot run via `fly ssh console`
+3. **Complete failure**: Self-signed cert fallback (already implemented)
 
-1. **Secrets corrupted**: Delete secrets, redeploy with 1 machine to trigger certbot
-2. **Renewal fails**: Manual intervention via `fly ssh console` to run certbot
-3. **Complete failure**: Revert to self-signed certs (already implemented as fallback)
+## Future: DNS-01 Validation
 
-## Future Improvements
+When a permanent domain with DNS API access is available:
 
-When permanent domain with DNS API access is available:
-
-1. Switch to DNS-01 validation
-2. No scaling required
-3. Can add `certbot-dns-cloudflare` or similar to Dockerfile
-4. Renewal works regardless of machine count
-
-## Testing
-
-1. Set dummy secrets, verify start.sh uses them
-2. Run extraction script, verify secrets stored correctly
-3. Manually trigger renewal workflow
-4. Verify SSL works after full cycle
+1. Switch to DNS-01 validation (no HTTP routing issues at all)
+2. Add `certbot-dns-cloudflare` or similar
+3. Remove Tigris dependency for ACME challenges
+4. Keep Tigris or secrets for cert distribution
