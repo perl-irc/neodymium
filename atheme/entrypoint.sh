@@ -60,10 +60,10 @@ echo "Atheme configuration instantiated successfully"
 echo "Tailscale hostname: ${HOSTNAME}"
 echo "Services password: ${SERVICES_PASSWORD}"
 
-# Simple HTTP health endpoint
-(while true; do
-    echo -e "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nAtheme Services Health OK" | nc -l -p 8080
-done) &
+# Create www_root directory for Atheme httpd health endpoint
+mkdir -p /opt/atheme/www
+echo "OK" > /opt/atheme/www/health
+chown -R atheme:atheme /opt/atheme/www
 
 # Cleanup function - only called when health check fails
 cleanup() {

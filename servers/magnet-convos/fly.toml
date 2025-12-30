@@ -23,6 +23,15 @@ primary_region = 'ord'
   # Default theme for landing page and new users
   CONVOS_DEFAULT_THEME = "magnet"
   CONVOS_DEFAULT_SCHEME = "light"
+  # Atheme authentication integration
+  # Enable the Atheme auth plugin for NickServ-based authentication
+  CONVOS_PLUGINS = "Convos::Plugin::Auth::Atheme"
+  # XMLRPC endpoint for login authentication
+  CONVOS_AUTH_ATHEME_URL = "http://magnet-atheme.internal:8080/xmlrpc"
+  # IRC server for NickServ registration commands
+  CONVOS_AUTH_ATHEME_IRC_URL = "irc://magnet-irc.flycast:16667"
+  # Domain for user email addresses
+  CONVOS_AUTH_ATHEME_DOMAIN = "irc.perl.org"
 
 [mounts]
   source = "convos_data"

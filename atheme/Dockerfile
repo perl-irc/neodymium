@@ -57,6 +57,7 @@ RUN chmod +x /app/entrypoint.sh
 # Container starts as root for Tailscale, drops to atheme user for services
 WORKDIR /opt/atheme/var
 
-EXPOSE 6667
+# Atheme httpd serves XMLRPC for Convos authentication
+EXPOSE 8080
 
 CMD ["/app/entrypoint.sh"]

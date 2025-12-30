@@ -44,9 +44,3 @@ primary_region = "ord"
     timeout = "10s"
     path = "/health"
 
-[[services]]
-  internal_port = 6667
-  protocol = "tcp"
-
-  [[services.ports]]
-    port = 6667

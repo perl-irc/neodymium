@@ -87,6 +87,10 @@ memoserv {
 /* Protocol module */
 loadmodule "protocol/solanum";
 
+/* HTTP server and XMLRPC for Convos authentication integration */
+loadmodule "misc/httpd";
+loadmodule "transport/xmlrpc";
+
 /* Backend modules */
 loadmodule "backend/opensex";
 
@@ -171,4 +175,11 @@ operclass "sra" {
  */
 operator "perigrin" {
     operclass = "sra";
+};
+
+/* HTTP server for XMLRPC integration with Convos */
+httpd {
+    host = "0.0.0.0";
+    port = 8080;
+    www_root = "/opt/atheme/www";
 };
